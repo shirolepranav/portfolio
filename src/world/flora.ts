@@ -37,25 +37,33 @@ export function createTrees(terrain: Terrain, material: Material, clear: V3[], c
   trunkB.add(limb([0, 0, 0], [0, 0.2, 0], 0.05, 0.05), C.woodD);
   const crowns = new InstancedMesh(crownB.build(), material, spots.length);
   const trunks = new InstancedMesh(trunkB.build(), material, spots.length);
-  const set = (i: number, hide = false) => {
-    const s = spots[i], k = hide ? 0 : S;
-    place(crowns, i, s.p, [s.r * k, s.h * k, s.r * k], s.rot);
-    place(trunks, i, s.p, [s.h * k, s.h * k, s.h * k], s.rot);
+  const set = (i: number, k = 1) => {
+    const s = spots[i], m = k * S;
+    place(crowns, i, s.p, [s.r * m, s.h * m, s.r * m], s.rot);
+    place(trunks, i, s.p, [s.h * m, s.h * m, s.h * m], s.rot);
   };
   spots.forEach((s, i) => { set(i); crowns.setColorAt(i, col.setRGB(...s.col)); });
   crowns.computeBoundingSphere(); trunks.computeBoundingSphere();
 
-  let hidden: number[] = [];
+  const scale = new Float32Array(spots.length).fill(1);
   return {
-    crowns, trunks, spots,
+    crowns, trunks, spots, scale,
     /** Shows the first n trees (quality tiers). */
     setCount(n: number) { crowns.count = trunks.count = Math.min(n, spots.length); },
-    /** Hides trees near the given points, as the scripts clear a camera's view for each shot. */
+    /**
+     * Clears trees near the given points, as the scripts clear a camera's view for each shot. Trees within r are
+     * gone; just beyond it they shrink into the ground, so the walking camera never makes them pop.
+     */
     clearAround(points: V3[], r = 0.13) {
-      for (const i of hidden) set(i);
-      hidden = spots.flatMap((s, i) => (points.some((c) => Math.hypot(s.p[0] - c[0], s.p[2] - c[2]) <= r) ? [i] : []));
-      for (const i of hidden) set(i, true);
-      crowns.instanceMatrix.needsUpdate = trunks.instanceMatrix.needsUpdate = true;
+      let changed = false;
+      const r2 = (r + 0.04) ** 2;
+      spots.forEach((s, i) => {
+        let d2 = r2;
+        for (const c of points) d2 = Math.min(d2, (s.p[0] - c[0]) ** 2 + (s.p[2] - c[2]) ** 2);
+        const k = smooth(r, r + 0.04, Math.sqrt(d2));
+        if (k !== scale[i]) { scale[i] = k; set(i, k); changed = true; }
+      });
+      if (changed) crowns.instanceMatrix.needsUpdate = trunks.instanceMatrix.needsUpdate = true;
     },
     /** Forest floor shading: 1 in the open, darker under trees. */
     shade(x: number, z: number) {

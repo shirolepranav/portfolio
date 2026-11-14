@@ -1,5 +1,5 @@
 ---
-// The lake: the 3D world full screen. Phase 3 shows it as a static scene; walking and the HUD come in Phases 4 and 5.
+// The lake: the 3D world full screen, walked with wheel, touch and keys. The HUD comes in Phase 5.
 // While the world loads, the walking still shows with a slim progress line (PLAN.md, Loading and fallbacks).
 import Base from "../layouts/Base.astro";
 import Still from "../components/Still.astro";
@@ -34,10 +34,14 @@ const world = { tents: items("camp"), canoes: items("dock") };
   const params = new URLSearchParams(location.search);
   const modeNow = () => (root.dataset.mode === "night" ? "night" : "day");
   root.dataset.lake = "building";
+  // The visitor's place on the loop is remembered for the browser session (storage can be blocked).
+  const KEY = "lake:progress";
+  const saved = (() => { try { return sessionStorage.getItem(KEY); } catch { return null; } })();
 
   // Let the progress line paint before the build blocks the main thread.
   requestAnimationFrame(() => setTimeout(() => {
-    const world = createWorld(canvas, { ...JSON.parse(canvas.dataset.world!), mode: modeNow() });
+    const world = createWorld(canvas, { ...JSON.parse(canvas.dataset.world!), mode: modeNow(), progress: saved && isFinite(+saved) ? +saved : undefined });
+    addEventListener("pagehide", () => { try { sessionStorage.setItem(KEY, String(world.state.get("progress"))); } catch {} });
     // Follow the day and night toggle; the world has no toggle of its own.
     new MutationObserver(() => world.setMode(modeNow())).observe(root, { attributes: true, attributeFilter: ["data-mode"] });
     if (params.has("debug")) import("../world/debug.ts").then((m) => m.startDebug(world, params));

@@ -23,17 +23,27 @@ export interface PropContext {
   light(p: V3, color: RGB, strength: number, radius: number, group: LightGroup): void;
   /** A rock for the shared instanced rock mesh. */
   rock(r: Rock): void;
+  /** A space the walking camera keeps out of. */
+  block(b: Block): void;
 }
 
 export interface PropCounts { tents: number; canoes: number }
 
-export function createPropContext(mesh: MeshBuilder, terrain: Terrain, lights: PropLight[], rocks: Rock[]): PropContext {
+/**
+ * A prop's space, kept clear of the walking camera: a box on the ground at c, half length and width along
+ * `along` (default x), from y[0] up to y[1] at the long edges and y[2] down the middle (a gable roof).
+ * see: see-through (stilts), so only the camera itself must stay out, not its line of sight.
+ */
+export interface Block { c: V3; half: [number, number]; y: [number, number, number]; along?: V3; see?: boolean }
+
+export function createPropContext(mesh: MeshBuilder, terrain: Terrain, lights: PropLight[], rocks: Rock[], blocks: Block[]): PropContext {
   return {
     terrain,
     solid: (s, c, o) => mesh.add(s, c, o),
     part: (s, c, o) => mesh.add(bevel(s, 0.0025), c, o),
     light: (p, color, strength, radius, group) => lights.push({ p, color, strength, radius, group }),
     rock: (r) => rocks.push(r),
+    block: (b) => blocks.push(b),
   };
 }
 
