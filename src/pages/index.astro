@@ -1,0 +1,82 @@
+---
+// Phase 0 test page: shows the three typefaces and ten colours.
+// Temporary. Phase 2 replaces it with the real landing screen.
+import Base from "../layouts/Base.astro";
+
+// shortcut: copy lives here only until src/content/site.ts exists in Phase 1.
+const colours = [
+  ["--ink", "#0F1B24"], ["--paper", "#F3EFE8"], ["--night", "#0B1620"],
+  ["--coral", "#F08A6E"], ["--teal", "#2FC4BD"], ["--amber", "#F2B84B"],
+  ["--slate", "#3B4750"], ["--mist", "#A9B8BF"], ["--fog", "#D5DDE0"],
+  ["--sand", "#E2DACC"],
+];
+---
+<Base title="Design tokens · The Lake Loop" description="Phase 0 token test page.">
+  <main>
+    <p class="label">Data engineer, heading for AI</p>
+    <h1 class="display name">[Your Name]</h1>
+    <p class="body-lg">I never climbed a ladder. I walked the whole shoreline.</p>
+    <p class="body-sm">Radio Canada at 15 px: I build the pipelines that feed models, then ship the product on top. <strong>Weight 600</strong>, <span class="w500">weight 500</span>.</p>
+    <p class="label mono-500">DM Mono 500 · 3D world · 7 stops · scroll to hike</p>
+
+    <ul class="swatches">
+      {colours.map(([token, hex]) => (
+        <li>
+          <span class="chip" style={`background: var(${token})`}></span>
+          <span class="label">{token}</span>
+          <span class="label hex">{hex}</span>
+        </li>
+      ))}
+    </ul>
+
+    <div class="row">
+      <a class="primary" href="#">
+        <span class="primary-text">
+          <span class="display primary-label">Walk the lake</span>
+          <span class="label primary-sub">3D world · 7 stops · scroll to hike</span>
+        </span>
+        <span class="badge" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </span>
+      </a>
+      <span class="stop" aria-label="Stop 1, you are here">01</span>
+      <svg class="logo" role="img" aria-label="Logo mark" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8" /><circle cx="18.2" cy="7" r="2.6" fill="currentColor" stroke="none" /></svg>
+    </div>
+  </main>
+</Base>
+
+<style>
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; display: grid; gap: 16px; }
+  .name { font-size: clamp(56px, 12vw, 120px); }
+  .body-lg { font-size: 26px; line-height: 1.3; font-weight: 500; margin: 0; max-width: 24ch; }
+  .body-sm { font-size: 15px; line-height: 1.5; margin: 0; color: var(--slate); }
+  .w500 { font-weight: 500; }
+  .mono-500 { font-weight: 500; color: var(--slate); }
+  .label { margin: 0; }
+
+  .swatches { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .swatches li { display: grid; gap: 4px; }
+  .chip { height: 72px; border-radius: 16px; border: 1px solid rgb(15 27 36 / 0.12); }
+  .hex { color: var(--slate); }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+  .primary {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 76px; min-width: min(358px, 100%); padding: 0 16px 0 20px;
+    border-radius: var(--radius-button); background: var(--ink); color: var(--paper); text-decoration: none;
+  }
+  .primary-text { display: flex; flex-direction: column; gap: 5px; }
+  .primary-label { font-size: 28px; line-height: 1; letter-spacing: 0.01em; }
+  .primary-sub { color: var(--mist); }
+  .badge {
+    flex: none; width: var(--touch); height: var(--touch); border-radius: 50%;
+    background: var(--coral); color: var(--ink); display: grid; place-items: center;
+    transition: transform 0.15s ease;
+  }
+  .primary:hover .badge { transform: translateX(3px); }
+  .stop {
+    width: var(--touch); height: var(--touch); border-radius: 50%; display: grid; place-items: center;
+    background: var(--coral); color: var(--ink); font-family: var(--font-mono); font-weight: 500; font-size: 13px;
+  }
+  .logo { color: var(--ink); }
+</style>

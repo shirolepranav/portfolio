@@ -1,0 +1,30 @@
+/* Design tokens from PLAN.md "Visual system". Use only these values in the UI. */
+:root {
+  /* Colours */
+  --ink: #0f1b24;   /* text on light, primary buttons by day */
+  --paper: #f3efe8; /* light ground, text on dark */
+  --night: #0b1620; /* dark ground, night HUD, Contact block */
+  --coral: #f08a6e; /* the one accent: current stop, arrow badge */
+  --teal: #2fc4bd;  /* main action on dark, "live" */
+  --amber: #f2b84b; /* "beta", lantern glow */
+  --slate: #3b4750; /* secondary text on light */
+  --mist: #a9b8bf;  /* secondary text on dark */
+  --fog: #d5dde0;   /* body text on dark */
+  --sand: #e2dacc;  /* placeholder tiles */
+  /* Coral, teal and amber fail contrast as text on Paper: use them on dark only. */
+
+  /* Type: --font-display, --font-mono and --font-body are set by Astro's <Font /> */
+  --display-leading: 0.88;
+  --label-size: 11px;
+  --label-tracking: 0.1em;
+
+  /* Shapes */
+  --radius-pill: 999px;
+  --radius-panel: 28px;
+  --radius-button: 22px; /* the large landing buttons in the designs */
+  --touch: 44px;         /* minimum touch target, also the arrow badge size */
+
+  /* HUD glass over the 3D scene (no blur) */
+  --glass-day: rgb(243 239 232 / 0.86);
+  --glass-night: rgb(11 22 32 / 0.74);
+}

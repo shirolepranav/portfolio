@@ -1,0 +1,29 @@
+/* Base styles shared by every page. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.4;
+}
+img, svg, canvas { display: block; max-width: 100%; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--coral); outline-offset: 3px; }
+
+/* Shared type roles */
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: var(--display-leading);
+  margin: 0;
+}
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+}
