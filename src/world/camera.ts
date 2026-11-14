@@ -7,6 +7,9 @@ import type { Env } from "./lighting";
 import type { Terrain } from "./terrain";
 import type { Block } from "./props/index";
 
+/** The walking camera's sun and moon (azimuth, elevation in degrees). Stop shots turn theirs at most 40 degrees from it. */
+export const WALK_SUN: Shot["sun"] = { day: [172, 22], night: [150, 40] };
+
 export const SHOTS = ["diorama", "dioramap", "walk", "walkp", "dock", "dockp", "vista"] as const;
 export type ShotName = (typeof SHOTS)[number];
 
@@ -118,7 +121,7 @@ export function walkShot(terrain: Terrain, deg: number, portrait: boolean, look 
   }
   return {
     eye: v3(eye), target: v3(tgt), fov: portrait ? 64 : 50, shift: [0, 0],
-    sun: { day: [172, 22], night: [150, 40] }, orbit: false, clear: slide ? corridor(eye, norm(flat(sub(tgt, eye))), right) : corridor(eye, vd, right), size: portrait ? [780, 1688] : [2160, 1350],
+    sun: WALK_SUN, orbit: false, clear: slide ? corridor(eye, norm(flat(sub(tgt, eye))), right) : corridor(eye, vd, right), size: portrait ? [780, 1688] : [2160, 1350],
   };
 }
 

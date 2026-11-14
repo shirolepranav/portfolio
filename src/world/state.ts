@@ -23,7 +23,7 @@ export function createState<T extends object>(init: T) {
 /**
  * The world's shared state, which the HUD listens to:
  * progress: 0 to 1 around the loop, 0 at the Trailhead. near: the visible stop within 3%, if any.
- * stop: the open stop. view: what the camera shows.
+ * stop: the open stop. arrived: the stop whose panel is up (after the camera and the prop reaction). view: what the camera shows.
  */
-export interface WorldEvents { progress: number; near: StopId | null; stop: StopId | null; view: "walk" | "stop" | "map" }
+export interface WorldEvents { progress: number; near: StopId | null; stop: StopId | null; arrived: StopId | null; view: "walk" | "stop" | "map" }
 export type WorldState = ReturnType<typeof createState<WorldEvents>>;

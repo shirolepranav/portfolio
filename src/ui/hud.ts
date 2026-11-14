@@ -14,7 +14,10 @@ const FOCUSABLE = "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1
 /** True for the desktop layout (it matches the CSS breakpoint). */
 const desktop = matchMedia("(min-width: 900px) and (orientation: landscape)");
 
-export function startHud(world: World) {
+/** Things outside the HUD that follow it: the chime as a panel opens. */
+export interface HudHooks { arrive?: (id: StopId) => void }
+
+export function startHud(world: World, hooks: HudHooks = {}) {
   const hud = $("[data-hud]");
   const { stops, ui } = JSON.parse($("#hud-data").textContent!) as Data;
   const n = stops.length, at = stops.map((s) => stopProgress(s.id));
@@ -167,12 +170,40 @@ export function startHud(world: World) {
     returnTo = null;
     if (el?.isConnected && el.checkVisibility?.({ visibilityProperty: true })) el.focus({ preventScroll: true });
   };
+  // A stop's panel waits for the camera and the prop's reaction (state "arrived"), then springs up and its rows
+  // appear one by one, all within PLAN.md's 1.2 s. Each project row cues its tent or canoe as it lands.
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  let cues: number[] = [];
+  const ROWS = ".intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline";
+  function showRows(panel: HTMLElement, id: StopId) {
+    cues.forEach(clearTimeout);
+    cues = [];
+    const rows = $$(ROWS, panel).filter((el) => !el.closest("[hidden]"));
+    // The panel is up at 0.75 s; rows start 0.04 s later, the last by 0.99 s, and each fades in over 0.2 s.
+    const step = Math.min(0.05, 0.2 / Math.max(1, rows.length - 1));
+    let project = 0;
+    rows.forEach((el, i) => {
+      el.style.setProperty("--d", `${(0.04 + i * step).toFixed(3)}s`);
+      if (el.querySelector(".project")) {
+        const k = project++;
+        cues.push(window.setTimeout(() => world.row(id, k), reduce.matches ? 0 : (0.04 + i * step) * 1000));
+      }
+    });
+    panel.classList.add("rows-in");
+  }
   const onStop = (id: StopId | null) => {
-    for (const p of panels) p.hidden = p.dataset.panel !== id;
-    const open = panels.find((p) => !p.hidden);
-    if (open) { remember(); requestAnimationFrame(() => $("h2", open).focus({ preventScroll: true })); }
-    else if (state.get("view") !== "map") giveBack();
+    // Leaving or changing stops hides the panel at once; the next one waits for its arrival.
+    for (const p of panels) { p.hidden = true; p.classList.remove("rows-in"); }
+    if (!id && state.get("view") !== "map") giveBack();
     railKey = "";
+  };
+  const onArrive = (id: StopId | null) => {
+    const open = panels.find((p) => p.dataset.panel === id);
+    if (!open || !id) return;
+    open.hidden = false;
+    remember();
+    requestAnimationFrame(() => { showRows(open, id); $("h2", open).focus({ preventScroll: true }); });
+    hooks.arrive?.(id);
   };
   const onView = (v: "walk" | "stop" | "map") => {
     hud.dataset.view = v;
@@ -182,9 +213,10 @@ export function startHud(world: World) {
     railKey = "";
   };
   state.on("stop", onStop);
+  state.on("arrived", onArrive);
   state.on("view", onView);
   onView(state.get("view")); // a /lake#<stop> address starts open
-  onStop(state.get("stop"));
+  onArrive(state.get("arrived"));
 
   // Two sections at one stop: a tab switch (arrow keys move between the tabs).
   for (const list of $$("[role=tablist]")) {

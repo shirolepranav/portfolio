@@ -122,5 +122,17 @@ const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (
     .keep-label { font-size: 26px; }
     .keep-next { font-size: 11px; }
   }
-  @media (prefers-reduced-motion: reduce) { .panel, .panel[hidden], .keep :global(svg) { transition: none; } }
+  /* Rows appear one by one once the panel is up (the HUD sets each row's --d delay). */
+  .panel :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) {
+    opacity: 0; transform: translateY(12px);
+  }
+  .panel.rows-in :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) {
+    opacity: 1; transform: none;
+    transition: opacity 0.2s ease var(--d, 0s), transform 0.3s cubic-bezier(0.2, 1, 0.4, 1) var(--d, 0s);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel, .panel[hidden], .keep :global(svg) { transition: none; }
+    .panel :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) { transform: none; }
+    .panel.rows-in :global(*) { transition: none !important; }
+  }
 </style>

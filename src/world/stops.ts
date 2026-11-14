@@ -3,7 +3,7 @@
 // on phones (a sheet covers the lower 53%) and the left two thirds on desktop (a panel covers the right).
 import { STOPS, type StopId } from "./config";
 import { add, cross, lift, mul, norm, sub, type V3 } from "./core";
-import { corridor, referenceShot, v3, type Shot } from "./camera";
+import { WALK_SUN, corridor, referenceShot, v3, type Shot } from "./camera";
 import type { Terrain } from "./terrain";
 
 /** Where the hiker stands at a stop and which way it faces. */
@@ -85,6 +85,9 @@ export function stopSpot(t: Terrain, id: StopId): Spot {
   return STOP[id].spot(t);
 }
 
+/** A sun azimuth turned at most 40 degrees away from `base` (degrees). */
+const capSun = (az: number, base: number) => base + Math.max(-40, Math.min(40, ((((az - base) % 360) + 540) % 360) - 180));
+
 /** The composed shot at a stop. The Dock's is the reference dock or dockp shot. */
 export function stopShot(t: Terrain, id: StopId, portrait: boolean): Shot {
   if (id === "dock") return referenceShot(portrait ? "dockp" : "dock", t);
@@ -96,8 +99,9 @@ export function stopShot(t: Terrain, id: StopId, portrait: boolean): Shot {
   const view = (Math.atan2(vd[2], vd[0]) * 180) / Math.PI;
   return {
     eye: v3(eye), target: v3(tgt), fov: f.fov, shift: f.shift, orbit: false,
-    // Light from the side and behind, as in the walk shot; front light flattens the props. Eased in on arrival.
-    sun: { day: [view + 115, 22], night: [view + 40, 34] },
+    // Light from the side and behind, as in the walk shot; front light flattens the props. Eased in on arrival,
+    // turned at most 40 degrees from the walking sun so shadows only shift a little. The Dock keeps its reference light.
+    sun: { day: [capSun(view + 115, WALK_SUN.day[0]), 22], night: [capSun(view + 40, WALK_SUN.night[0]), 34] },
     clear: corridor(eye, vd, right, Math.min(0.5, Math.hypot(...sub(tgt, eye)) * 0.6)),
     size: portrait ? [780, 1688] : [2160, 1350],
   };

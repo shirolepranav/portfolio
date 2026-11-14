@@ -1,7 +1,9 @@
 // Debug mode at /lake?debug: frame counter, draw calls and triangles, a quality tier switch, a progress
 // slider, the walking camera, and jumps to each reference shot (with a free camera) for screenshots.
 // URL extras: &progress=0..1 puts the hiker there, &shot=<name> starts on a shot, &tier=low|medium|high,
-// &stop=<id> opens a stop at once (no glide), &map=1 opens the map, &panel=0 hides the panel.
+// &stop=<id> opens a stop at once (no glide), &map=1 opens the map, &panel=0 hides the panel,
+// &sweep=0..1 holds the day-to-night sweep at that point, &animals=0 hides the wildlife.
+// Buttons: each prop's reaction on demand, the sweep (the page's day or night toggle), and wildlife on or off.
 // From the console: clearance() checks the walking camera all round the loop, every stop shot, and the flights.
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { TIERS, T_TRAIL, progressDeg, type Tier } from "./config";
@@ -31,6 +33,8 @@ export function startDebug(world: World, params: URLSearchParams) {
   const stop = params.get("stop") as StopId | null;
   if (stop && world.stops.includes(stop)) openNow(stop);
   if (params.get("map")) world.showMap(true);
+  const sweep = params.get("sweep");
+  if (sweep !== null) world.pinSweep(+sweep);
 
   const panel = document.createElement("div");
   panel.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:50;padding:8px 10px;border-radius:10px;background:rgb(11 22 32/.8);" +
@@ -52,7 +56,14 @@ export function startDebug(world: World, params: URLSearchParams) {
   slider.style.cssText = "width:100%;margin-top:6px";
   slider.oninput = () => world.setProgress(+slider.value);
   panel.append(stats, slider, row(Object.keys(TIERS), (t) => world.setTier(t as Tier)), row(["follow", ...SHOTS], (s) => (s === "follow" ? follow() : jump(s as ShotName))),
-    row([...world.stops, "map", "close"], (s) => (s === "map" ? world.showMap(true) : s === "close" ? world.close() : openNow(s as StopId))));
+    row([...world.stops, "map", "close"], (s) => (s === "map" ? world.showMap(true) : s === "close" ? world.close() : openNow(s as StopId))),
+    row(world.stops.map((s) => `react ${s}`), (s) => world.react(s.slice(6) as StopId)),
+    row(["sweep", "hold 0", "hold .25", "hold .5", "hold .75", "hold 1", "release", "animals"], (s) => {
+      if (s === "sweep") document.querySelector<HTMLElement>("[data-mode-cycle]")?.click(); // the page's own toggle, so the HUD follows
+      else if (s === "release") world.pinSweep(null);
+      else if (s === "animals") world.setAnimals(!world.animals);
+      else world.pinSweep(+s.slice(5));
+    }));
   document.body.append(panel);
 
   // The camera's own pass alone: one extra render without the shadow map and the lake mirror.
