@@ -15,7 +15,7 @@ import type { MaterialOptions } from "./lighting";
 import { U, createLights, makeEnv, sweepEnv, worldMaterial, type Env } from "./lighting";
 import { createSky } from "./sky";
 import { createWater } from "./water";
-import { corridor, mapShot, referenceShot, stepSlide, walkShot, type Shot, type ShotName } from "./camera";
+import { corridor, divePath, diveEase, landingShot, mapShot, referenceShot, stepSlide, walkShot, type DivePath, type Shot, type ShotName } from "./camera";
 import { propAnchor, stopShot, stopSpot } from "./stops";
 import { createState } from "./state";
 import { VMAX, createInput, type Command } from "./input";
@@ -34,9 +34,21 @@ export interface WorldOptions extends PropCounts {
   stops?: StopId[];                     // the stops with something to read, in walking order; the rest are scenery
   open?: StopId | null;                 // start at this stop with its shot in place (a /lake#<stop> address)
   reducedMotion?: boolean;              // camera cuts instead of flights
+  landing?: boolean;                    // start on the landing orbit (the / address), ready to dive in
   onCommand?: (c: Command) => void;     // one-shot keys, for the HUD
 }
-export type World = ReturnType<typeof createWorld>;
+export type World = Awaited<ReturnType<typeof createWorld>>;
+export type View = "landing" | "dive" | "walk" | "stop" | "map";
+
+// The landing island (PLAN.md, Always-on life): it turns slowly and bobs a little.
+const TURN = 2.4;          // degrees per second: one turn in two and a half minutes
+const BOB = 0.012;         // units (about 40 cm) up and down
+const BOB_PERIOD = 6;      // seconds
+// The dive (PLAN.md, 2.5 s) and the flight back up to the landing.
+const DIVE = 2.5, RISE = 1.6;
+
+/** Lets the browser paint and handle input between build steps, so no single task blocks the page for long. */
+const pause = () => new Promise<void>((r) => setTimeout(r, 0));
 
 /** Starting tier from device hints. Phase 8 adds stepping down when the frame rate drops. */
 export function pickTier(): Tier {
@@ -64,7 +76,8 @@ function mixEnv(a: Env, b: Env, k: number): Env {
   return out as unknown as Env;
 }
 
-export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
+/** Builds the world in steps, yielding between them, and resolves once its render loop runs (world.ready: first frame drawn). */
+export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.outputColorSpace = LinearSRGBColorSpace; // the tone curve already gamma-encodes
   renderer.toneMapping = CustomToneMapping;
@@ -79,7 +92,9 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const materials: Material[] = [];
   const makeMaterial = (o: MaterialOptions = {}) => { const m = worldMaterial(o); materials.push(m); return m; };
   const material = makeMaterial();
+  await pause();
   const terrain = createTerrain();
+  await pause();
   const mesh = new MeshBuilder(), lightList: PropLight[] = [], rockList: Rock[] = [], blocks: Block[] = [];
   const moving = new Group(), wildlife = new Group();
   let animalsOn = true;
@@ -87,19 +102,24 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     terrain, land: mesh, lights: lightList, rocks: rockList, blocks, group: moving, material: makeMaterial, reduced,
   }), opts);
   terrain.addBridge(mesh);
+  await pause();
   const lanterns = createLanterns(terrain, makeMaterial({ flicker: true }));
   for (const p of lanterns.lights) lightList.push({ p, color: [1.0, 0.7, 0.38], strength: 0.28, radius: 0.16, group: "lantern" });
   const rocks = createRocks(terrain, material, rockList);
   const clearings = [...Object.values(STOPS).map((d) => terrain.at(d, 1.2)), ...ANIMALS.map(([d, t]) => terrain.at(d, t))];
   const trees = createTrees(terrain, material, clearings);
+  await pause();
   terrain.addLand(mesh, trees.shade);
+  await pause();
   const land = new Mesh(mesh.build(), material);
   const skirt = new Mesh(terrain.skirt(), material);
+  await pause();
   const water = createWater(terrain.water());
   const sky = createSky();
   land.castShadow = land.receiveShadow = trees.crowns.castShadow = trees.crowns.receiveShadow = true;
   trees.trunks.castShadow = rocks.castShadow = rocks.receiveShadow = lanterns.mesh.castShadow = true;
   scene.add(sky.dome, sky.stars, land, skirt, water.mesh, trees.crowns, trees.trunks, rocks, lanterns.mesh, moving, wildlife);
+  await pause();
   const lights = createLights(scene, lightList);
   const hikerMaterial = makeMaterial({ smooth: true });
   const hiker = createHiker(hikerMaterial);
@@ -108,6 +128,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const audio = createAudio();
   hiker.onStep((loud) => audio.step(surface, loud));
   const firePos = new Vector3(...toWorld(terrain.at(STOPS.campfire, 1.17)));
+  await pause();
   // Wildlife: the same smooth material as the hiker. Each animal is one draw call.
   const actors: Actor[] = [...createWildlife(terrain, hikerMaterial), createBirds(terrain, hikerMaterial)];
   wildlife.add(...actors.map((a) => a.object));
@@ -124,7 +145,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const open0 = opts.open && stops.includes(opts.open) ? opts.open : null;
   const state = createState({
     progress: open0 ? stopProgress(open0) : wrap(opts.progress ?? START),
-    near: null as StopId | null, stop: open0, view: (open0 ? "stop" : "walk") as "walk" | "stop" | "map",
+    near: null as StopId | null, stop: open0, view: (opts.landing ? "landing" : open0 ? "stop" : "walk") as View,
     arrived: open0 as StopId | null, // the stop whose panel is up: set once the camera is there and the prop has reacted
   });
   // Arriving at a stop (PLAN.md, 1.2 s): the camera eases to the stop's shot (0.9 s), the prop reacts once the
@@ -201,6 +222,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   let night = mode === "night" ? 1 : 0, nightPin: number | null = null, clock = 0, started = false;
   const SWEEP = reduced ? 1 : 1.8;
   let shot: Shot, shotName: ShotName | null = null; // shotName: a debug reference shot pinned in place
+  let dive: { path: DivePath; t: number; dur: number; up: boolean; done: () => void } | null = null;
+  let turn = 0, bobOn = 1; // the landing island's slow turn (degrees), and how much of its bob is on
   let composer: EffectComposer | null = null, bloom: UnrealBloomPass | null = null;
   const frameHooks: ((now: number) => void)[] = [];
   // Camera moves blend from a frozen shot to the live one: walk, stop or map.
@@ -226,6 +249,12 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   function liveShot(deg: number, dt: number): Shot {
     const view = state.get("view"), port = portrait(), id = state.get("stop");
     if (view === "map") return mapShot(terrain, port, input.stepSpin(dt));
+    if (view === "landing") {
+      if (!reduced) turn += TURN * dt; // still with reduced motion; a drag still spins it
+      bobOn = Math.min(1, bobOn + dt / 2); // eases in after the flight back up
+      const bob = reduced ? 0 : BOB * bobOn * Math.sin((clock * 2 * Math.PI) / BOB_PERIOD);
+      return landingShot(terrain, port, canvas.clientWidth / canvas.clientHeight, turn + input.stepSpin(dt), bob);
+    }
     if (view === "stop" && id) {
       const key = id + port;
       if (!stopShots.has(key)) stopShots.set(key, stopShot(terrain, id, port));
@@ -245,7 +274,29 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     if (s.fov !== lastFov) { const b = renderer.getDrawingBufferSize(new Vector2()); water.setSize(b.x, b.y, s.fov); lastFov = s.fov; }
   }
 
+  /** One frame of the dive, down (landing to walk) or back up. */
+  function flyDive(dt: number) {
+    const d = dive!;
+    d.t = d.dur ? Math.min(1, d.t + dt / d.dur) : 1;
+    const u = d.up ? diveEase(1 - d.t) : diveEase(d.t); // 0 at the landing, 1 behind the hiker
+    shot = d.path.at(u);
+    const { a, b } = d.path;
+    applyEnv(mixEnv(envOf(a), envOf(b), u), lerp(a.orbit ? 1 : 0, b.orbit ? 1 : 0, u));
+    if (d.t < 1) return;
+    dive = null; envDirty = true;
+    lastEye.set(NaN, NaN, NaN); // clear the trees for the walking view
+    state.set("view", d.up ? "landing" : "walk");
+    input.enabled = !d.up; input.spinning = d.up;
+    d.done();
+  }
+
   function moveCamera(deg: number, dt: number) {
+    if (dive) {
+      flyDive(dt);
+      placeCamera(shot);
+      if (!shot.eye.equals(lastEye)) { trees.clearAround(shot.clear); lastEye.copy(shot.eye); }
+      return;
+    }
     const live = liveShot(deg, dt);
     if (!blend) {
       shot = live;
@@ -272,6 +323,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
 
   /** Switches what the camera shows, flying there over `dur` seconds (a cut with reduced motion). */
   function setView(view: "walk" | "stop" | "map", stop: StopId | null, dur = 1.2) {
+    if (dive) return; // nothing interrupts the dive
     if (state.get("view") === view && state.get("stop") === stop) return;
     const was = state.get("stop");
     if (was && was !== stop) { reactions[was].end(); state.set("arrived", null); }
@@ -287,18 +339,41 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   }
 
   function openStop(id: StopId) {
-    if (!stops.includes(id)) return;
+    if (!stops.includes(id) || dive) return;
     glide = null;
     setView("stop", id, STOP_FLIGHT);
   }
 
   /** Walks to a stop over one to three seconds, the shorter way, then opens it if asked. */
   function goTo(id: StopId, open = true) {
-    if (!stops.includes(id)) return;
+    if (!stops.includes(id) || dive) return;
     const from = state.get("progress"), dp = step(from, stopProgress(id));
     if (Math.abs(dp) < 1e-4) { if (open) openStop(id); else setView("walk", null); return; }
     setView("walk", null, state.get("view") === "map" ? 1.6 : 1.2);
     glide = { from, dp, t: 0, dur: reduced ? 0 : Math.min(3, Math.max(1, 1 + 4 * Math.abs(dp))), then: open ? id : null };
+  }
+
+  /**
+   * The dive. down: from the landing orbit to behind the hiker, wherever the hiker stands (2.5 s).
+   * Up: back from the lake to the landing orbit (1.6 s). Reduced motion makes it a cut. Resolves on landing.
+   */
+  function flyTo(down: boolean) {
+    const view = state.get("view");
+    if (dive || (down ? view !== "landing" : view === "landing")) return Promise.resolve();
+    const was = state.get("stop");
+    if (was) { reactions[was].end(); state.set("arrived", null); state.set("stop", null); }
+    glide = null; blend = null; arrival = null;
+    input.enabled = input.spinning = false;
+    const port = portrait(), deg = progressDeg(state.get("progress"));
+    // The walking end is the Phase 5 walking shot, with its slide past any prop already settled.
+    if (down) slide = stepSlide(terrain, deg, facing, port, look, blocks, slide, 10); // a long step lands on the settled slide
+    const walkEnd = down ? walkShot(terrain, deg, port, look, slide) : shot;
+    if (!down) bobOn = 0; // lands on the unbobbed orbit, then the bob eases back in
+    const top = down ? shot : landingShot(terrain, port, canvas.clientWidth / canvas.clientHeight, turn + input.stepSpin(0), 0);
+    return new Promise<void>((done) => {
+      dive = { path: divePath(terrain, top, walkEnd, deg), t: 0, dur: reduced ? 0 : down ? DIVE : RISE, up: !down, done };
+      state.set("view", "dive");
+    });
   }
 
   function resize() {
@@ -356,7 +431,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     if (started) warmUp();
   }
 
-  input.enabled = !open0;
+  input.enabled = !open0 && !opts.landing;
+  input.spinning = !!opts.landing;
   shot = referenceShot("walk", terrain);
   setTier(tier);
   addEventListener("resize", resize);
@@ -417,6 +493,9 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     last = now;
     if (!frozen) frame(dt, now);
   };
+  // Compile the day shaders off the main thread before the first frame, so it never stalls the page.
+  placeCamera(shot);
+  await renderer.compileAsync(scene, camera);
   renderer.setAnimationLoop(loop);
   // A hidden tab: stop drawing altogether (PLAN.md, Loading and fallbacks). The audio pauses itself.
   const onVisible = () => { renderer.setAnimationLoop(document.hidden ? null : loop); last = performance.now(); };
@@ -435,7 +514,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     get mode() { return mode; },
     get shot() { return shot; },
     /** True while the camera is flying between views. */
-    get moving() { return !!blend || !!glide; },
+    get moving() { return !!blend || !!glide || !!dive; },
     /** Day or night. The light sweeps there, lamps coming on round the loop from where the hiker stands. */
     setMode(m: Mode) {
       if (m === mode) return;
@@ -451,9 +530,11 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     openStop,
     goTo,
     /** Closes the open stop: the hiker walks back to the trail and the camera returns behind it. */
-    close() { if (state.get("view") !== "walk") setView("walk", null); },
+    close() { const v = state.get("view"); if (v === "stop" || v === "map") setView("walk", null); },
     /** Shows or hides the island map: the camera flies up to the orbit and back. */
-    showMap(on: boolean) { if (on) { glide = null; setView("map", null, 1.6); } else if (state.get("view") === "map") setView("walk", null, 1.6); },
+    showMap(on: boolean) { const v = state.get("view"); if (on && (v === "walk" || v === "stop")) { glide = null; setView("map", null, 1.6); } else if (!on && v === "map") setView("walk", null, 1.6); },
+    /** The dive into the lake (down) or the flight back up to the landing. Resolves when the camera lands. */
+    dive: flyTo,
     /** Where a stop's prop is on screen, for the chip and the map pins. */
     stopOnScreen(id: StopId) { return toScreen(anchors[id].p); },
     /** Where the hiker is on screen. */
@@ -474,6 +555,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     setShot,
     /** Back to the live camera after a debug shot. */
     follow() { shotName = null; input.enabled = state.get("view") === "walk"; envDirty = true; resize(); },
+    /** Debug: the landing island's turn in degrees, for frame-exact screenshots. */
+    set turn(d: number) { turn = d; },
     get following() { return !shotName; },
     /** Puts the hiker at a point on the loop and stops (debug screenshots). */
     setProgress(p: number) { glide = null; state.set("progress", wrap(p)); input.stop(); },

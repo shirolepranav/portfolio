@@ -1,0 +1,73 @@
+---
+// The lake's shell: the canvas, the HUD over it, and a still under it while the world loads.
+// /lake renders it on its own. The landing renders it too, under the landing's text, with the island still in the slot:
+// both share one canvas and one world, so the dive into the lake needs no new page.
+import Still from "../Still.astro";
+import Hud from "./Hud.astro";
+import { site } from "../../content/site.ts";
+import { visibleStops } from "../../content/helpers.ts";
+import walkPhone from "../../assets/walk-day-phone.jpg";
+import walkDesktop from "../../assets/walk-day-desktop.jpg";
+
+interface Props { landing?: boolean }
+const { landing = false } = Astro.props;
+const { profile, ui } = site;
+// The world gets ids and counts only: the visible stops, one tent per app and one canoe per product.
+const stops = visibleStops(site.sections);
+const items = (id: string) =>
+  stops.find((s) => s.id === id)?.sections.reduce((n, s) => n + (s.kind === "projects" ? s.items.length : 0), 0) ?? 0;
+const world = { tents: items("camp"), canoes: items("dock"), stops: stops.map((s) => s.id) };
+---
+<div class="lake" data-page={landing ? "landing" : "lake"} data-title={`${profile.name} · ${ui.landingWalk}`}>
+  <div class="still">
+    {landing ? <slot /> : <div class="walk-still"><Still phone={walkPhone} desktop={walkDesktop} alt={ui.lakeStillAlt} eager /></div>}
+  </div>
+  <canvas id="world" aria-label={ui.lakeCanvas} data-world={JSON.stringify(world)}></canvas>
+  <a class="skip" href="/highlights">{ui.skipToHighlights}</a>
+  <div class="vignette" aria-hidden="true"></div>
+  {!landing && <div class="progress" aria-hidden="true"></div>}
+  <Hud />
+</div>
+
+<style>
+  /* The lake never scrolls: the canvas is fixed and full screen. The landing page scrolls if it has to. */
+  :global(html:has(.lake:not([data-page="landing"]))), :global(body:has(.lake:not([data-page="landing"]))) { overflow: hidden; overscroll-behavior: none; }
+  .lake { position: fixed; inset: 0; background: var(--sand); }
+  :root[data-mode="night"] .lake { background: var(--night); }
+
+  /* No night walking still exists, so night loads on the Night ground. */
+  :root[data-mode="night"] .walk-still { display: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 0.6s ease; touch-action: none; }
+  :root[data-lake="ready"] canvas { opacity: 1; }
+  /* The landing still lets a finger scroll the page up and down; sideways drags spin the island. */
+  [data-page="landing"] canvas { touch-action: pan-y; }
+
+  /* Visible only when focused: the first stop for keyboard users who want the plain page. */
+  .skip {
+    position: absolute; left: 12px; top: 12px; z-index: 10; padding: 12px 18px; border-radius: var(--radius-pill);
+    background: var(--ink); color: var(--paper); font: 500 12px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
+    text-decoration: none; transform: translateY(-200%);
+  }
+  .skip:focus { transform: none; }
+  [data-page="landing"] .skip { display: none; }
+
+  /* The reference frames' vignette (finish() in shots.py), as a cheap overlay. The landing stills have it baked in. */
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none; transition: opacity 0.6s ease;
+    background: radial-gradient(ellipse 141% 141% at 50% 50%, transparent 39%, rgb(0 0 0 / 0.22) 100%);
+  }
+  :root:not([data-lake="ready"]) [data-page="landing"] .vignette { opacity: 0; }
+
+  /* The HUD waits for the dive to land, then fades in. */
+  .lake :global([data-hud]) { transition: opacity 0.45s ease; }
+  .lake:not([data-page="lake"]) :global([data-hud]) { visibility: hidden; opacity: 0; transition: none; }
+
+  .progress {
+    position: absolute; left: 0; top: 0; height: 3px; width: 8%;
+    background: var(--coral); transition: width 0.4s ease, opacity 0.4s ease 0.3s;
+  }
+  :root[data-lake="building"] .progress { width: 55%; }
+  :root[data-lake="ready"] .progress { width: 100%; opacity: 0; }
+
+  @media (prefers-reduced-motion: reduce) { canvas, .progress, .vignette, .lake :global([data-hud]) { transition: none; } }
+</style>

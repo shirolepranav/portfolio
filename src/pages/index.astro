@@ -1,11 +1,13 @@
 ---
-// Landing: the island as a still, two ways in, and a day and night toggle.
-// Phase 7 adds the live 3D island over the still. Every word comes from src/content/site.ts.
+// Landing: the island as a still, two ways in, a day and night toggle and (on desktop) a sound button.
+// The live 3D island loads after the page and fades in over the still; "Walk the lake" dives into the lake on the
+// same canvas (src/ui/landing.ts). Every word comes from src/content/site.ts.
 import Base from "../layouts/Base.astro";
 import Logo from "../components/Logo.astro";
 import Icon from "../components/Icon.astro";
 import Still from "../components/Still.astro";
 import DayNightToggle from "../components/DayNightToggle.astro";
+import Lake from "../components/lake/Lake.astro";
 import { site } from "../content/site.ts";
 import { visibleStops } from "../content/helpers.ts";
 import type { StopId } from "../content/types.ts";
@@ -25,21 +27,25 @@ const pinAt: Record<StopId, [number, number]> = {
 const stops = visibleStops(site.sections);
 ---
 <Base title={`${profile.name} · ${profile.role}`} description={profile.tagline}>
-  <main class="landing">
+  <main class="landing" data-page="landing">
     <header>
       <span class="mark"><Logo /><span class="label">{ui.portfolioMark}</span></span>
-      <DayNightToggle />
+      <div class="tools">
+        <!-- Sound: off until turned on, and remembered. Desktop only, as drawn. The HUD drives it once the 3D is up. -->
+        <button type="button" class="sound" data-sound aria-pressed="false" aria-label={ui.sound} title={ui.sound}>
+          <Icon name="sound" size={20} stroke={2} /><Icon name="mute" size={20} stroke={2} />
+        </button>
+        <DayNightToggle />
+      </div>
     </header>
 
     <div class="scene">
-      <div class="still day"><Still phone={dayPhone} desktop={dayDesktop} alt={ui.landingStillAlt} eager /></div>
-      <div class="still night"><Still phone={nightPhone} desktop={nightDesktop} alt={ui.landingStillNightAlt} /></div>
-      <ol class="pins">
+      <ol class="pins" data-landing-pins>
         {stops.map((s, i) => {
           const [x, y] = pinAt[s.id];
           const first = s.sections[0];
           return (
-            <li class="label" style={`left: ${(x / 14.4).toFixed(2)}%; top: ${(y / 9).toFixed(2)}%`}>
+            <li class="label" data-landing-pin={s.id} style={`left: ${(x / 14.4).toFixed(2)}%; top: ${(y / 9).toFixed(2)}%`}>
               <span class="num">{i + 1}</span>{first.short ?? first.label}
             </li>
           );
@@ -73,7 +79,39 @@ const stops = visibleStops(site.sections);
       <p class="note">{ui.landingNote}</p>
     </div>
   </main>
+  <Lake landing>
+    <div class="still day"><Still phone={dayPhone} desktop={dayDesktop} alt={ui.landingStillAlt} eager /></div>
+    <div class="still night"><Still phone={nightPhone} desktop={nightDesktop} alt={ui.landingStillNightAlt} /></div>
+  </Lake>
 </Base>
+
+<script>
+  // Before the 3D: the sound button just remembers the choice.
+  const sound = document.querySelector<HTMLButtonElement>(".landing [data-sound]")!;
+  const KEY = "lake:sound";
+  try { sound.setAttribute("aria-pressed", String(localStorage.getItem(KEY) === "on")); } catch {}
+  sound.addEventListener("click", () => {
+    if (sound.hasAttribute("data-live")) return;
+    const on = sound.getAttribute("aria-pressed") !== "true";
+    sound.setAttribute("aria-pressed", String(on));
+    try { localStorage.setItem(KEY, on ? "on" : "off"); } catch {}
+  });
+  // The 3D waits for the page to finish loading, then starts on the visitor's first move, touch, scroll or key press,
+  // or after 3 s idle, whichever comes first. So it never competes with the text, buttons and still.
+  const INPUT = ["pointermove", "pointerdown", "wheel", "scroll", "keydown"];
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    for (const e of INPUT) removeEventListener(e, start);
+    void import("../ui/landing.ts").then((m) => m.startLanding());
+  };
+  const arm = () => {
+    for (const e of INPUT) addEventListener(e, start, { passive: true });
+    setTimeout(start, 3000);
+  };
+  if (document.readyState === "complete") arm(); else addEventListener("load", arm, { once: true });
+</script>
 
 <style>
   /* Phone first (Main, 390 x 844). Colours switch with :root[data-mode]. */
@@ -83,22 +121,34 @@ const stops = visibleStops(site.sections);
     --quick-bg: rgb(243 239 232 / 0.92); --quick-fg: var(--ink); --quick-sub: var(--slate);
     --pin-bg: rgb(243 239 232 / 0.9); --pin-num-bg: var(--ink); --pin-num-fg: var(--paper);
 
-    position: relative; isolation: isolate; overflow: hidden;
+    position: relative; z-index: 1; isolation: isolate; overflow: hidden;
     min-height: 100svh; display: flex; flex-direction: column;
-    padding: 18px 16px; background: var(--sand); color: var(--fg);
+    padding: 18px 16px; color: var(--fg);
+    pointer-events: none; /* drags on the open island reach the canvas underneath */
+    transition: opacity 0.45s ease 0.95s, translate 0.45s ease 0.95s; /* back from the lake: drops in as the camera arrives */
   }
+  .landing > :not(.scene) { pointer-events: auto; }
+  /* The dive: the text lifts away as the camera drops. */
+  .landing:not([data-page="landing"]) { opacity: 0; translate: 0 -40px; transition: opacity 0.4s ease-in, translate 0.5s ease-in; }
   /* Night has no drawn design: the nearest pattern is the night HUD (Night glass, Paper text, Teal main action). */
   :root[data-mode="night"] .landing {
     --fg: var(--paper); --fg-2: var(--mist);
     --walk-bg: var(--teal); --walk-fg: var(--ink); --walk-sub: var(--night); --walk-badge: var(--ink); --walk-badge-fg: var(--paper);
     --quick-bg: var(--glass-night); --quick-fg: var(--paper); --quick-sub: var(--mist);
     --pin-bg: var(--glass-night); --pin-num-bg: var(--paper); --pin-num-fg: var(--ink);
-    background: var(--night);
   }
 
   header { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 2px; }
   .mark { display: flex; align-items: center; gap: 8px; }
   .mark .label { letter-spacing: 0.14em; font-weight: 500; }
+  .tools { display: flex; align-items: center; gap: 10px; }
+  /* A 48 px glass circle, as drawn. Desktop only. */
+  .sound {
+    display: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; place-items: center;
+    background: var(--glass-day); color: var(--ink); cursor: pointer;
+  }
+  :root[data-mode="night"] .sound { background: var(--glass-night); color: var(--paper); }
+  .sound[aria-pressed="true"] :global(svg:last-child), .sound[aria-pressed="false"] :global(svg:first-child) { display: none; }
 
   .scene { position: absolute; inset: 0; z-index: -1; }
   .still.night, :root[data-mode="night"] .still.day { display: none; }
@@ -152,10 +202,10 @@ const stops = visibleStops(site.sections);
     background: var(--pin-num-bg); color: var(--pin-num-fg); font-size: 10px; letter-spacing: 0;
   }
 
-  /* Reduced motion: the quick path comes first. */
+  /* Reduced motion: the quick path comes first, and the dive is a cut. */
   @media (prefers-reduced-motion: reduce) {
     .quick { order: -1; }
-    .badge { transition: none; }
+    .badge, .landing, .landing:not([data-page="landing"]) { transition: none; }
   }
 
   /* Desktop (Landing-Desktop, 1440 x 900): one text column in the left third. */
@@ -165,6 +215,7 @@ const stops = visibleStops(site.sections);
     .mark { gap: 10px; }
     .mark :global(svg) { width: 24px; height: 24px; }
     .mark .label { font-size: 12px; }
+    :root[data-js] .sound { display: grid; }
 
     .intro { gap: 12px; margin-top: 56px; padding: 0; width: 460px; }
     .kicker { font-size: 13px; }
