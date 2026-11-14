@@ -22,6 +22,7 @@ import { VMAX, createInput, type Command } from "./input";
 import { createHiker } from "./actors/hiker";
 import { createWildlife, type Actor, type ActorContext } from "./actors/animals";
 import { createBirds } from "./actors/birds";
+import { createAudio } from "./audio";
 
 export type { Mode, StopId, Tier } from "./config";
 export type { ShotName } from "./camera";
@@ -103,6 +104,10 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const hikerMaterial = makeMaterial({ smooth: true });
   const hiker = createHiker(hikerMaterial);
   scene.add(hiker.object);
+  // Sound: off until the visitor turns it on. Footsteps follow the hiker's feet; the fire is heard from about 40 m.
+  const audio = createAudio();
+  hiker.onStep((loud) => audio.step(surface, loud));
+  const firePos = new Vector3(...toWorld(terrain.at(STOPS.campfire, 1.17)));
   // Wildlife: the same smooth material as the hiker. Each animal is one draw call.
   const actors: Actor[] = [...createWildlife(terrain, hikerMaterial), createBirds(terrain, hikerMaterial)];
   wildlife.add(...actors.map((a) => a.object));
@@ -124,6 +129,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   });
   // Arriving at a stop (PLAN.md, 1.2 s): the camera eases to the stop's shot, the prop reacts, then the panel springs up.
   const REACT_AT = 0.6, PANEL_AT = 0.75;
+  state.on("arrived", (id) => { if (id) audio.chime(); }); // one soft chime as a panel opens
   let arrival: { id: StopId; t: number; reacted: boolean } | null = open0 ? { id: open0, t: PANEL_AT - 0.3, reacted: false } : null;
   const input = createInput(canvas, opts.onCommand);
   // Metres of trail per degree. Steps are scaled by it so the pace stays even where the shore bulges out.
@@ -131,7 +137,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   let meanM = 0;
   for (let d = 0; d < 360; d++) meanM += mPerDeg(d) / 360;
   const feet = new Vector3(), prevFeet = new Vector3(), lastEye = new Vector3();
-  let facing = 1, slide = 0, look = 0, away = open0 ? 1 : 0, spotId: StopId | null = open0;
+  let facing = 1, slide = 0, look = 0, away = open0 ? 1 : 0, spotId: StopId | null = open0, surface: "sand" | "wood" = "sand";
   // A glide moves progress to a stop over one to three seconds, the shorter way round ("Keep walking", map jumps).
   let glide: { from: number; dp: number; t: number; dur: number; then: StopId | null } | null = null;
 
@@ -165,7 +171,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     // The hiker: on the trail, or walking out to (and back from) the open stop's spot.
     const deg = progressDeg(p);
     const trail = terrain.at(deg, T_TRAIL), tan = toWorld(terrain.frame(deg)[1], 1);
-    if (Math.abs(angdiff(deg * D2R, TV)) < 2.8 * D2R) trail[1] = Math.max(trail[1], 0.0195); // on the footbridge deck
+    const onBridge = Math.abs(angdiff(deg * D2R, TV)) < 2.8 * D2R;
+    if (onBridge) trail[1] = Math.max(trail[1], 0.0195); // on the footbridge deck
     const want = state.get("view") === "stop" ? 1 : 0;
     if (want) spotId = state.get("stop");
     const spot = spotId ? spots[spotId] : null;
@@ -182,6 +189,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     let yaw = Math.atan2(tan[0] * facing, tan[2] * facing);
     if (spot && k > 0 && k < 1 && moved > 0.05) yaw = Math.atan2(feet.x - prevFeet.x, feet.z - prevFeet.z);
     else if (spot && k === 1) { const f = toWorld(spot.face, 1); yaw = Math.atan2(f[0], f[2]); }
+    // Wood underfoot on the footbridge and out on the dock; sand everywhere else.
+    surface = onBridge || (spotId === "dock" && k > 0.2) ? "wood" : "sand";
     hiker.update(dt, { position: feet, yaw, speed: Math.min(moved, 12) });
     return deg;
   }
@@ -372,7 +381,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const ready = new Promise<void>((r) => (resolveReady = r));
   let first = true, last = 0;
   /** One frame: walk, sweep, camera, lights, reactions, then draw. dt in seconds. */
-  function frame(dt: number, now: number) {
+  function frame(dt: number, now: number, draw = true) {
     clock += dt;
     U.uTime.value = clock;
     const deg = walk(dt);
@@ -386,6 +395,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     else if (envDirty) { applyMode(); envDirty = false; }
     lights.tick(clock);
     arrive(dt);
+    const fd = feet.distanceTo(firePos);
+    audio.update(nightPin ?? night, (3 / Math.max(fd, 3)) * smooth(42, 25, fd)); // full beside the fire, a tenth of that at 30 m
     for (const r of Object.values(reactions)) r.update(dt, clock, lampBoost);
     if (animalsOn) {
       life.dt = dt; life.t = clock; life.night = nightPin ?? night;
@@ -395,6 +406,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     camera.near = Math.max(0.1, camera.position.length() * 0.004); // tighter depth range for close shots
     camera.updateProjectionMatrix();
     renderer.info.reset();
+    if (!draw) return;
     if (composer) composer.render(); else renderer.render(scene, camera);
     if (first) { first = false; started = true; resolveReady(); warmUp(); }
   }
@@ -469,9 +481,15 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     onFrame(f: (now: number) => void) { frameHooks.push(f); },
     /** Debug: stops the clock (true), or steps it by dt seconds and draws, for frame-exact screenshots. */
     freeze(on: boolean) { frozen = on; },
-    step(dt: number, frames = 1) { for (let i = 0; i < frames; i++) frame(dt, performance.now()); },
+    step(dt: number, frames = 1) { for (let i = 0; i < frames; i++) frame(dt, performance.now(), i === frames - 1); },
     /** Whether the render loop is running (false on a hidden tab). */
     get running() { return !document.hidden; },
+    /** Sound on or off. Call it from a click or key press (browsers only start audio on one). */
+    setSound(on: boolean) { audio.set(on); },
+    get sound() { return audio.on; },
+    /** After the first click or key press, resumes sound that was left on (autoplay rules). */
+    unlockSound() { audio.unlock(); },
+    audio,
     /** Every animal, for the clearance audit. */
     actors,
     /** Wildlife on or off (debug comparisons). */

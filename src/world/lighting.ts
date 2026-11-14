@@ -1,7 +1,7 @@
 // Day and night light sets, the shared sky and fog shader code, and the material most of the world uses.
 // Values from env_day and env_night in reference/scene/shots.py.
 import { Color, DirectionalLight, HemisphereLight, MeshLambertMaterial, PointLight, ShaderChunk, Vector2, Vector3, type Scene } from "three";
-import { D2R, S, STOPS, TIERS, type LightGroup, type Mode, type RGB, type Tier } from "./config";
+import { D2R, S, TIERS, type LightGroup, type Mode, type RGB, type Tier } from "./config";
 import { lerp, smooth, toWorld } from "./core";
 import type { PropLight } from "./props/index";
 
@@ -128,8 +128,6 @@ export const loopOrder = (x: number, z: number, fromDeg: number) => {
   const deg = (Math.atan2(-z, x) * 180) / Math.PI; // the scripts' angle; world z is mirrored
   return ((((deg - fromDeg) / 360) % 1) + 1) % 1;
 };
-/** The angle the light-up starts from: where the hiker stands. Defaults to the Trailhead. */
-export const LIT_FROM = STOPS.trailhead;
 
 /** Sky colour by direction, and distance-plus-height fog tinted by the sky toward that direction. */
 export const WORLD_GLSL = /* glsl */ `

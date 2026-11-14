@@ -17,6 +17,8 @@ export interface Hiker {
   update(dt: number, pose: HikerPose): void;
   /** true: cast a real shadow (shadow map tier). false: a soft blob on the ground. */
   setShadow(map: boolean): void;
+  /** Calls cb each time a foot lands, with how firmly (0 to 1): footstep sounds follow the walk cycle. */
+  onStep(cb: (loud: number) => void): void;
 }
 
 const H = 0.05 * S; // 1.75 m; every size below is a fraction of it
@@ -73,11 +75,12 @@ export function createHiker(material: Material): Hiker {
   const [pelvis, thighL, shinL, thighR, shinR, spine, pack, head, pom, armL, armR] = bones;
   const rest = (b: Bone) => b.position.y;
   const pelvisY = rest(pelvis), packY = rest(pack);
-  let yaw = NaN, phase = 0, walkW = 0, t = 0;
+  let yaw = NaN, phase = 0, walkW = 0, t = 0, stepCb: (loud: number) => void = () => {};
 
   return {
     object,
     setShadow(map) { mesh.castShadow = map; blob.visible = !map; },
+    onStep(cb) { stepCb = cb; },
     update(dt, pose) {
       t += dt;
       if (Number.isNaN(yaw)) yaw = pose.yaw;
@@ -89,7 +92,10 @@ export function createHiker(material: Material): Hiker {
       // Walk cycle tied to speed: longer, quicker strides as speed rises; phase advances with distance.
       const v = pose.speed;
       walkW += (smooth(0.05, 1.2, v) - walkW) * (1 - Math.exp(-dt / 0.15));
+      // A foot lands at each end of the stride: where the phase passes a quarter turn plus a half turn.
+      const before = Math.floor((phase - Math.PI / 2) / Math.PI);
       phase += (2 * Math.PI * v * dt) / Math.min(3.2, 1.4 + 0.33 * v);
+      if (Math.floor((phase - Math.PI / 2) / Math.PI) !== before && walkW > 0.3) stepCb(Math.min(1, walkW * (0.6 + 0.1 * v)));
       const w = walkW, s = Math.sin(phase), c = Math.cos(phase), A = w * (0.3 + 0.05 * Math.min(v, 5.3));
       thighL.rotation.x = -A * s; thighR.rotation.x = A * s;               // negative swings a leg forward
       shinL.rotation.x = 1.3 * A * Math.max(0, c); shinR.rotation.x = 1.3 * A * Math.max(0, -c); // knee bends on the forward swing

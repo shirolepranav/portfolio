@@ -14,10 +14,7 @@ const FOCUSABLE = "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1
 /** True for the desktop layout (it matches the CSS breakpoint). */
 const desktop = matchMedia("(min-width: 900px) and (orientation: landscape)");
 
-/** Things outside the HUD that follow it: the chime as a panel opens. */
-export interface HudHooks { arrive?: (id: StopId) => void }
-
-export function startHud(world: World, hooks: HudHooks = {}) {
+export function startHud(world: World) {
   const hud = $("[data-hud]");
   const { stops, ui } = JSON.parse($("#hud-data").textContent!) as Data;
   const n = stops.length, at = stops.map((s) => stopProgress(s.id));
@@ -203,7 +200,6 @@ export function startHud(world: World, hooks: HudHooks = {}) {
     open.hidden = false;
     remember();
     requestAnimationFrame(() => { showRows(open, id); $("h2", open).focus({ preventScroll: true }); });
-    hooks.arrive?.(id);
   };
   const onView = (v: "walk" | "stop" | "map") => {
     hud.dataset.view = v;
@@ -304,6 +300,20 @@ export function startHud(world: World, hooks: HudHooks = {}) {
   };
   syncMode();
   new MutationObserver(syncMode).observe(document.documentElement, { attributes: true, attributeFilter: ["data-mode"] });
+
+  // ---- Sound: off until the visitor turns it on; the choice is remembered (localStorage, which can be blocked). ----
+  const soundBtn = $<HTMLButtonElement>("[data-sound]");
+  const setSound = (on: boolean, save = true) => {
+    world.setSound(on);
+    soundBtn.setAttribute("aria-pressed", String(on));
+    if (save) try { localStorage.setItem("lake:sound", on ? "on" : "off"); } catch {}
+  };
+  soundBtn.addEventListener("click", () => setSound(!world.sound));
+  try { if (localStorage.getItem("lake:sound") === "on") setSound(true, false); } catch {}
+  // Browsers start audio only after a click or key press, so sound left on last time starts on the first one.
+  const unlock = () => world.unlockSound();
+  addEventListener("pointerdown", unlock);
+  addEventListener("keydown", unlock);
 
   // ---- Keys from the world's input: E or Enter, Esc, M, N, and left and right with a panel open. ----
   function command(c: Command) {

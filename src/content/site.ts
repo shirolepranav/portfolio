@@ -245,6 +245,7 @@ export const site = {
     keyChange: "Previous / next stop",
     keyEsc: "Esc",
     keyMap: "Map",
+    sound: "Sound", // the desktop sound button; its pressed state says whether sound is on
     closeAndWalk: "Close and keep walking",
     keepWalking: "Keep walking",
     backTo: "Back to stop {a}, {name}", // {a} = number, {name} = stop name

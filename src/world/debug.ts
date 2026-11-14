@@ -265,7 +265,7 @@ export function startDebug(world: World, params: URLSearchParams) {
    * of any animal comes to the trail's edge, in metres. Negative would mean a hoof on the trail.
    */
   function wildlifeTrail() {
-    const { terrain } = world, S = 35, v = new Vector3(), near = new Vector3(), far = new Vector3(0, -999, 0);
+    const S = 35, v = new Vector3(), near = new Vector3(), far = new Vector3(0, -999, 0);
     let gap = Infinity, who = "";
     const each: Record<string, number> = {};
     const names = ["elk 5°", "elk 49°", "elk 53.5°", "elk -52°", "bears", "moose", "birds"];
