@@ -20,6 +20,8 @@ import { propAnchor, stopShot, stopSpot } from "./stops";
 import { createState } from "./state";
 import { VMAX, createInput, type Command } from "./input";
 import { createHiker } from "./actors/hiker";
+import { createWildlife, type Actor, type ActorContext } from "./actors/animals";
+import { createBirds } from "./actors/birds";
 
 export type { Mode, StopId, Tier } from "./config";
 export type { ShotName } from "./camera";
@@ -101,6 +103,9 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const hikerMaterial = makeMaterial({ smooth: true });
   const hiker = createHiker(hikerMaterial);
   scene.add(hiker.object);
+  // Wildlife: the same smooth material as the hiker. Each animal is one draw call.
+  const actors: Actor[] = [...createWildlife(terrain, hikerMaterial), createBirds(terrain, hikerMaterial)];
+  wildlife.add(...actors.map((a) => a.object));
 
   // Stops: only the visible ones slow the walk, show a chip or open. A hidden stop's prop is scenery.
   const stops = opts.stops ?? (Object.keys(STOPS) as StopId[]);
@@ -334,6 +339,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     water.setReflection(q.reflection);
     renderer.shadowMap.enabled = q.shadows;
     hiker.setShadow(q.shadows);
+    for (const a of actors) a.setShadow(q.shadows);
     for (const m of materials) m.needsUpdate = true; // shadows on or off change the shader
     resize();
     void setGlow(q.glow);
@@ -346,6 +352,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   addEventListener("resize", resize);
 
   const lampBoost = (i: number, k: number) => lights.boost(lights.lamps[i], k);
+  const life: ActorContext = { dt: 0, t: 0, hiker: feet, eye: camera.position, night: 0, ripple: (x, z) => water.ripple(x, z, clock) };
   /** Steps the arrival at a stop: the prop reacts, then the panel's turn comes (state "arrived"). */
   function arrive(dt: number) {
     if (!arrival) return;
@@ -380,6 +387,10 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     lights.tick(clock);
     arrive(dt);
     for (const r of Object.values(reactions)) r.update(dt, clock, lampBoost);
+    if (animalsOn) {
+      life.dt = dt; life.t = clock; life.night = nightPin ?? night;
+      for (const a of actors) a.update(life);
+    }
     for (const f of frameHooks) f(now);
     camera.near = Math.max(0.1, camera.position.length() * 0.004); // tighter depth range for close shots
     camera.updateProjectionMatrix();
@@ -461,6 +472,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     step(dt: number, frames = 1) { for (let i = 0; i < frames; i++) frame(dt, performance.now()); },
     /** Whether the render loop is running (false on a hidden tab). */
     get running() { return !document.hidden; },
+    /** Every animal, for the clearance audit. */
+    actors,
     /** Wildlife on or off (debug comparisons). */
     setAnimals(on: boolean) { animalsOn = on; wildlife.visible = on; },
     get animals() { return animalsOn; },
