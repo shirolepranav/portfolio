@@ -12,11 +12,12 @@ const { title, description } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <Font cssVariable="--font-display" preload />
     <Font cssVariable="--font-mono" preload />
-    <Font cssVariable="--font-body" />
+    <Font cssVariable="--font-body" preload />
   </head>
   <body>
     <slot />

@@ -1,0 +1,16 @@
+---
+// One Highlights section: page gutters, max width and the standard top spacing.
+interface Props { id?: string; class?: string }
+const { id, class: extra } = Astro.props;
+---
+<section id={id} class:list={["block", extra]}>
+  <div class="inner"><slot /></div>
+</section>
+
+<style>
+  .block { padding: clamp(64px, 9cqw, 120px) var(--gutter) 0; }
+  .inner {
+    max-width: var(--page-max); margin: 0 auto;
+    display: flex; flex-direction: column; gap: clamp(28px, 3.2cqw, 44px);
+  }
+</style>

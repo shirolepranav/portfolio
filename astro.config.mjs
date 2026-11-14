@@ -3,12 +3,13 @@ import { defineConfig, fontProviders } from "astro/config";
 
 export default defineConfig({
   output: "static",
+  build: { inlineStylesheets: "always" }, // CSS is small: inline it so first paint needs no extra request
   fonts: [
     {
       name: "Big Shoulders",
       cssVariable: "--font-display",
       provider: fontProviders.google(),
-      weights: [800],
+      weights: [700, 800], // 700 only for the "Off the clock" line
       styles: ["normal"],
       fallbacks: ["Impact", "sans-serif"],
     },

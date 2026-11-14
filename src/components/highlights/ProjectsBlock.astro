@@ -1,0 +1,56 @@
+---
+// All "projects" sections merged into one "Side projects" list.
+import type { ProjectsSection } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import Block from "./Block.astro";
+import SectionHead from "./SectionHead.astro";
+import Icon from "../Icon.astro";
+
+interface Props { sections: ProjectsSection[]; number: string }
+const { sections, number } = Astro.props;
+const { ui } = site;
+const rows = sections.flatMap((s) => s.items.map((item) => ({ ...item, type: s.itemType })));
+---
+<Block id="projects">
+  <SectionHead number={number} label={ui.sideProjects} title={ui.sideProjectsTitle} />
+  <ul class="grid">
+    {rows.map((p) => {
+      const Tag = p.url ? "a" : "div";
+      return (
+        <li>
+          <Tag class="row" href={p.url || undefined}>
+            {p.icon
+              ? <img class="tile" src={p.icon} alt="" width="56" height="56" loading="lazy" decoding="async" />
+              : <span class="tile label" aria-hidden="true">{ui.noIcon}</span>}
+            <span class="text">
+              <span class="label meta">{p.type} · {p.status}</span>
+              <span class="name">{p.name}</span>
+              <span class="line">{p.line}</span>
+            </span>
+            {p.url && <Icon name="out" />}
+          </Tag>
+        </li>
+      );
+    })}
+  </ul>
+</Block>
+
+<style>
+  .grid {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 0 clamp(24px, 4cqw, 56px);
+    grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
+  }
+  .row {
+    display: flex; align-items: center; gap: 16px; min-height: 96px; padding: 14px 0;
+    border-top: 1px solid var(--line); color: inherit; text-decoration: none;
+  }
+  a.row:hover .name { text-decoration: underline; text-underline-offset: 4px; }
+  .tile {
+    flex: none; width: 56px; height: 56px; border-radius: 14px; background: var(--sand);
+    display: grid; place-items: center; font-size: 9px; color: var(--slate); object-fit: cover;
+  }
+  .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .meta { font-size: 10px; letter-spacing: 0.14em; color: var(--slate); }
+  .name { font-size: 20px; line-height: 1.2; font-weight: 600; }
+  .line { font-size: 15px; line-height: 1.4; color: var(--slate); }
+</style>

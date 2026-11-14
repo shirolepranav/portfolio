@@ -1,0 +1,52 @@
+---
+// kind "text": paragraphs, plus the optional "The path so far" steps.
+import type { TextSection } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import { pad2 } from "../../content/helpers.ts";
+import Block from "./Block.astro";
+import SectionHead from "./SectionHead.astro";
+
+interface Props { section: TextSection; number: string }
+const { section, number } = Astro.props;
+const { ui } = site;
+---
+<Block id={section.id}>
+  <SectionHead number={number} label={section.label} title={section.title} />
+  <div class="body">
+    {section.body.map((p) => <p>{p}</p>)}
+  </div>
+  {section.path && section.path.length > 0 && (
+    <div class="path">
+      <span class="label">{ui.pathSoFar}</span>
+      <ol>
+        {section.path.map((step, i) => (
+          <li class:list={[step.marker]}>
+            <span class="label num">{pad2(i + 1)}{step.marker && ` · ${ui[step.marker]}`}</span>
+            <span class="step">{step.label}</span>
+            <span class="note">{step.note}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )}
+</Block>
+
+<style>
+  .body {
+    display: grid; gap: 16px clamp(24px, 4cqw, 56px);
+    grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  }
+  p { margin: 0; font-size: clamp(17px, 1.45cqw, 20px); line-height: 1.5; text-wrap: pretty; }
+
+  .path { display: flex; flex-direction: column; gap: 18px; margin-top: clamp(8px, 1.4cqw, 20px); }
+  .path > .label { letter-spacing: 0.14em; color: var(--slate); }
+  ol {
+    margin: 0; padding: 0; list-style: none; display: grid; gap: 20px 16px;
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  }
+  li { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 2px solid var(--ink); }
+  li.next { padding-top: 10px; border-top: 4px solid var(--coral); }
+  .num { color: var(--slate); }
+  .step { font-size: 17px; line-height: 1.25; font-weight: 600; }
+  .note { font-size: 13px; color: var(--slate); }
+</style>

@@ -11,12 +11,21 @@
   --mist: #a9b8bf;  /* secondary text on dark */
   --fog: #d5dde0;   /* body text on dark */
   --sand: #e2dacc;  /* placeholder tiles */
+
+  /* Hairlines: Ink or Paper at low opacity, not new colours */
+  --line: rgb(15 27 36 / 0.22);      /* dividers on Paper */
+  --line-strong: rgb(15 27 36 / 0.3); /* tag outlines on Paper */
+  --line-dark: rgb(243 239 232 / 0.2); /* dividers on Night */
   /* Coral, teal and amber fail contrast as text on Paper: use them on dark only. */
 
   /* Type: --font-display, --font-mono and --font-body are set by Astro's <Font /> */
   --display-leading: 0.88;
   --label-size: 11px;
   --label-tracking: 0.1em;
+
+  /* Layout */
+  --page-max: 1296px;
+  --gutter: clamp(20px, 5cqw, 72px); /* cqw = % of the page container width */
 
   /* Shapes */
   --radius-pill: 999px;

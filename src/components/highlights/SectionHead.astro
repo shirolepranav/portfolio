@@ -1,0 +1,15 @@
+---
+// "02 / SKILLS" label above a big section heading.
+interface Props { number: string; label: string; title?: string }
+const { number, label, title } = Astro.props;
+---
+<div class="head">
+  <span class="label">{number} / {label}</span>
+  {title && <h2 class="display">{title}</h2>}
+</div>
+
+<style>
+  .head { display: flex; flex-direction: column; gap: 12px; }
+  .label { font-size: 12px; letter-spacing: 0.14em; color: var(--slate); }
+  h2 { font-size: clamp(44px, 5.6cqw, 80px); line-height: 0.92; }
+</style>
