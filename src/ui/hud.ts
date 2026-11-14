@@ -176,8 +176,8 @@ export function startHud(world: World) {
     cues.forEach(clearTimeout);
     cues = [];
     const rows = $$(ROWS, panel).filter((el) => !el.closest("[hidden]"));
-    // The panel is up at 0.75 s; rows start 0.04 s later, the last by 0.99 s, and each fades in over 0.2 s.
-    const step = Math.min(0.05, 0.2 / Math.max(1, rows.length - 1));
+    // The panel is up at 0.85 s; rows start 0.04 s later, the last by 1.01 s, and each fades in over 0.18 s.
+    const step = Math.min(0.03, 0.12 / Math.max(1, rows.length - 1));
     let project = 0;
     rows.forEach((el, i) => {
       el.style.setProperty("--d", `${(0.04 + i * step).toFixed(3)}s`);

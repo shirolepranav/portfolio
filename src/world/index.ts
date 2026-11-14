@@ -127,8 +127,9 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     near: null as StopId | null, stop: open0, view: (open0 ? "stop" : "walk") as "walk" | "stop" | "map",
     arrived: open0 as StopId | null, // the stop whose panel is up: set once the camera is there and the prop has reacted
   });
-  // Arriving at a stop (PLAN.md, 1.2 s): the camera eases to the stop's shot, the prop reacts, then the panel springs up.
-  const REACT_AT = 0.6, PANEL_AT = 0.75;
+  // Arriving at a stop (PLAN.md, 1.2 s): the camera eases to the stop's shot (0.9 s), the prop reacts once the
+  // camera is nearly there (0.7 s), then the panel springs up (0.85 s) and its rows land by 1.2 s.
+  const STOP_FLIGHT = 0.9, REACT_AT = 0.7, PANEL_AT = 0.85;
   state.on("arrived", (id) => { if (id) audio.chime(); }); // one soft chime as a panel opens
   let arrival: { id: StopId; t: number; reacted: boolean } | null = open0 ? { id: open0, t: PANEL_AT - 0.3, reacted: false } : null;
   const input = createInput(canvas, opts.onCommand);
@@ -288,7 +289,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   function openStop(id: StopId) {
     if (!stops.includes(id)) return;
     glide = null;
-    setView("stop", id);
+    setView("stop", id, STOP_FLIGHT);
   }
 
   /** Walks to a stop over one to three seconds, the shorter way, then opens it if asked. */
