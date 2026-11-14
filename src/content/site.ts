@@ -210,6 +210,10 @@ export const site = {
     landingStillNightAlt:
       "The same floating island at night under a starry sky, with lanterns and tents glowing around the lake",
 
+    // Lake
+    lakeCanvas: "A 3D mountain lake: a loop trail runs around a turquoise lake ringed by snowy peaks",
+    lakeStillAlt: "A low-poly hiker walks the sandy shore of a turquoise lake toward a fire lookout tower, under snowy peaks",
+
     // Highlights
     tour: "3D tour",
     resume: "Résumé",
