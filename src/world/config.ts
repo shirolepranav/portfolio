@@ -15,6 +15,11 @@ export const TV = -68 * D2R;         // creek outlet: a gap in the mountain ring
 export const STOPS = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, point: 190, campfire: 240 } as const;
 export type StopId = keyof typeof STOPS;
 
+// progress runs 0 to 1 around the loop: 0 at the Trailhead, rising in walking order (counter-clockwise).
+export const progressDeg = (p: number) => STOPS.trailhead + 360 * p;
+export const START = (-13 - STOPS.trailhead) / 360; // where the walk reference frame (and the loading still) stands
+export const NEAR_STOP = 0.03;                       // within 3% of the loop of a stop, walking slows
+
 // Peaks as (angle deg, height, width deg): tall to the north, low hills to the south.
 export const PEAKS: [number, number, number][] = [[84, 1.18, 16], [57, 0.95, 13], [33, 0.8, 12], [112, 1.04, 14], [137, 0.8, 12],
   [160, 0.88, 13], [10, 0.72, 13], [188, 0.74, 14], [-14, 0.5, 13], [212, 0.52, 13], [236, 0.22, 14], [-38, 0.3, 12]];

@@ -11,6 +11,7 @@ export function camp(ctx: PropContext, count: number) {
     // The script places three tents 5.2 degrees apart; more or fewer stay centred on the stop.
     const off = k - (count - 1) / 2, tc = terrain.at(deg + off * 5.2, 1.19 + 0.03 * (k % 2));
     tent(ctx, lift(tc, -0.004), 0.092, 0.078, 0.06, yaw + 1.57 + off * 0.35, COLOURS[k % 3]);
+    ctx.block({ c: tc, half: [0.046, 0.04], y: [0, 0.03, 0.06], along: [Math.cos(yaw + 1.57), 0, Math.sin(yaw + 1.57)] });
     light(lift(tc, 0.03), [1.0, 0.62, 0.36], 0.55, 0.22, "stop");
   }
 }

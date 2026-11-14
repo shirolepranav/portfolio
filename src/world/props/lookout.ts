@@ -3,8 +3,10 @@ import { C, STOPS } from "../config";
 import { add, box, cone, lift, limb, mul, type V3 } from "../core";
 import type { PropContext } from "./index";
 
-export function lookout({ terrain, solid, part, light }: PropContext) {
+export function lookout({ terrain, solid, part, light, block }: PropContext) {
   const c = terrain.at(STOPS.lookout, 1.23), top = 0.17;
+  block({ c, half: [0.05, 0.05], y: [0, top, top], see: true });             // the open stilts
+  block({ c, half: [0.055, 0.055], y: [top - 0.005, top + 0.064, top + 0.105] }); // the cab and its roof
   const p = (x: number, y: number, z: number) => add(c, [x, y, z]);
   for (const sx of [-1, 1]) for (const sz of [-1, 1])
     part(limb(p(sx * 0.045, 0, sz * 0.045), p(sx * 0.028, top, sz * 0.028), 0.008, 0.008, [1, 0, 0]), C.woodD);

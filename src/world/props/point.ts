@@ -3,7 +3,7 @@ import { C, STOPS } from "../config";
 import { add, box, lift, limb, mul, scaleRGB, sub } from "../core";
 import { tangentYaw, type PropContext } from "./index";
 
-export function point({ terrain, part, rock }: PropContext) {
+export function point({ terrain, part, rock, block }: PropContext) {
   const deg = STOPS.point, [out, tan] = terrain.frame(deg), { rng } = terrain;
   const base = terrain.at(deg, 1.035);
   for (let k = 0; k < 7; k++) {
@@ -11,6 +11,7 @@ export function point({ terrain, part, rock }: PropContext) {
     rock({ c: lift(q, r * 0.2), r, squash: [1.2, 0.6, 1.1], col: scaleRGB(C.rock, rng.uniform(0.85, 1.1)) });
   }
   const tp = lift(sub(base, mul(out, 0.02)), 0.03), top = lift(tp, 0.05);
+  block({ c: tp, half: [0.02, 0.02], y: [0, 0.07, 0.07], see: true });
   for (let k = 0; k < 3; k++) {
     const aa = k * 2.094 + 0.4;
     part(limb(add(tp, [0.016 * Math.cos(aa), 0, 0.016 * Math.sin(aa)]), top, 0.004, 0.004, tan), [0.15, 0.15, 0.17]);

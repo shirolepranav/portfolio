@@ -3,8 +3,9 @@ import { C, STOPS } from "../config";
 import { add, box, gable, lift, limb, mul, sub } from "../core";
 import { tangentYaw, type PropContext } from "./index";
 
-export function kiosk({ terrain, solid, part, light }: PropContext) {
+export function kiosk({ terrain, solid, part, light, block }: PropContext) {
   const [out, tan] = terrain.frame(STOPS.trailhead), c = terrain.at(STOPS.trailhead, 1.15);
+  block({ c, half: [0.06, 0.02], y: [0, 0.075, 0.095], along: tan });
   for (const s of [-1, 1]) {
     const foot = add(c, mul(tan, s * 0.045));
     part(limb(foot, lift(foot, 0.075), 0.008, 0.008, tan), C.woodD);

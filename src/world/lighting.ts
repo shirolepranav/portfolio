@@ -97,11 +97,11 @@ vec3 CustomToneMapping( vec3 color ) {
 }`);
 
 /**
- * Flat-shaded Lambert with vertex colours, plus: per-vertex emissive and snow wrap lighting (the "fx"
+ * Flat-shaded Lambert with vertex colours (smooth-shaded for the hiker and animals), plus: per-vertex emissive and snow wrap lighting (the "fx"
  * attribute), and the scripts' HDR fog applied before tone mapping instead of three's fog after it.
  */
-export function worldMaterial() {
-  const m = new MeshLambertMaterial({ vertexColors: true, flatShading: true });
+export function worldMaterial(smooth = false) {
+  const m = new MeshLambertMaterial({ vertexColors: true, flatShading: !smooth });
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = swap(sh.vertexShader, "#include <common>", "#include <common>\nattribute vec2 fx;\nvarying vec2 vFx;\nvarying vec3 vWorldPos;");
