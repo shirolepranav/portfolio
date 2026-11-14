@@ -1,0 +1,75 @@
+---
+// The lake: the 3D world full screen. Phase 3 shows it as a static scene; walking and the HUD come in Phases 4 and 5.
+// While the world loads, the walking still shows with a slim progress line (PLAN.md, Loading and fallbacks).
+import Base from "../layouts/Base.astro";
+import Still from "../components/Still.astro";
+import DayNightToggle from "../components/DayNightToggle.astro";
+import { site } from "../content/site.ts";
+import { visibleStops } from "../content/helpers.ts";
+import walkPhone from "../assets/walk-day-phone.jpg";
+import walkDesktop from "../assets/walk-day-desktop.jpg";
+
+const { profile, ui } = site;
+// One tent per app and one canoe per product: the enabled items of the projects sections at those stops.
+const stops = visibleStops(site.sections);
+const items = (id: string) =>
+  stops.find((s) => s.id === id)?.sections.reduce((n, s) => n + (s.kind === "projects" ? s.items.length : 0), 0) ?? 0;
+const world = { tents: items("camp"), canoes: items("dock") };
+---
+<Base title={`${profile.name} · ${ui.landingWalk}`} description={profile.tagline}>
+  <main class="lake">
+    <div class="still"><Still phone={walkPhone} desktop={walkDesktop} alt={ui.lakeStillAlt} eager /></div>
+    <canvas id="world" aria-label={ui.lakeCanvas} data-world={JSON.stringify(world)}></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="progress" aria-hidden="true"></div>
+    <header><DayNightToggle /></header>
+  </main>
+</Base>
+
+<script>
+  import { createWorld } from "../world/index.ts";
+
+  const canvas = document.querySelector<HTMLCanvasElement>("#world")!;
+  const root = document.documentElement;
+  const params = new URLSearchParams(location.search);
+  const modeNow = () => (root.dataset.mode === "night" ? "night" : "day");
+  root.dataset.lake = "building";
+
+  // Let the progress line paint before the build blocks the main thread.
+  requestAnimationFrame(() => setTimeout(() => {
+    const world = createWorld(canvas, { ...JSON.parse(canvas.dataset.world!), mode: modeNow() });
+    // Follow the day and night toggle; the world has no toggle of its own.
+    new MutationObserver(() => world.setMode(modeNow())).observe(root, { attributes: true, attributeFilter: ["data-mode"] });
+    if (params.has("debug")) import("../world/debug.ts").then((m) => m.startDebug(world, params));
+    world.ready.then(() => (root.dataset.lake = "ready"));
+  }));
+</script>
+
+<style>
+  /* The page never scrolls: the canvas is fixed and full screen. */
+  :global(html:has(.lake)), :global(body:has(.lake)) { overflow: hidden; overscroll-behavior: none; }
+  .lake { position: fixed; inset: 0; background: var(--sand); }
+  :root[data-mode="night"] .lake { background: var(--night); }
+
+  /* No night still exists, so night loads on the Night ground. */
+  :root[data-mode="night"] .still { display: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 0.6s ease; touch-action: none; }
+  :root[data-lake="ready"] canvas { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { canvas, .progress { transition: none; } }
+
+  /* The reference frames' vignette (finish() in shots.py), as a cheap overlay. */
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 141% 141% at 50% 50%, transparent 39%, rgb(0 0 0 / 0.22) 100%);
+  }
+
+  .progress {
+    position: absolute; left: 0; top: 0; height: 3px; width: 8%;
+    background: var(--coral); transition: width 0.4s ease, opacity 0.4s ease 0.3s;
+  }
+  :root[data-lake="building"] .progress { width: 55%; }
+  :root[data-lake="ready"] .progress { width: 100%; opacity: 0; }
+
+  header { position: absolute; top: 18px; right: 16px; }
+  @media (min-width: 900px) and (orientation: landscape) { header { top: 28px; right: 40px; } }
+</style>
