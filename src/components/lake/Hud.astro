@@ -51,6 +51,10 @@ const ANGLES = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, p
   </div>
   <div class="right desk">
     <a class="pill glass label" href="/highlights">{ui.highlights}<Icon name="out" size={16} /></a>
+    <!-- Sound: off until turned on, and remembered. Desktop only, as drawn. -->
+    <button type="button" class="round glass sound" data-sound aria-pressed="false" aria-label={ui.sound} title={ui.sound}>
+      <Icon name="sound" size={20} stroke={2} /><Icon name="mute" size={20} stroke={2} />
+    </button>
     <DayNightToggle />
   </div>
 
@@ -137,7 +141,8 @@ const ANGLES = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, p
   }
   .hud > *, .map > * { pointer-events: auto; }
   .hud > .pin, .hud > .hint { pointer-events: none; }
-  .glass { background: var(--h-glass); }
+  /* The glass follows the day-to-night sweep instead of flipping at once. */
+  .glass { background: var(--h-glass); transition: background-color 1.2s ease 0.3s, color 1.2s ease 0.3s; }
   .label { font-size: 11px; letter-spacing: 0.12em; font-weight: 500; }
   :root:not([data-lake="ready"]) .hud { visibility: hidden; }
 
@@ -156,6 +161,9 @@ const ANGLES = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, p
   .mode :global(svg:last-child), :root[data-mode="night"] .mode :global(svg:first-child) { display: none; }
   :root[data-mode="night"] .mode :global(svg:last-child) { display: block; }
   :root:not([data-js]) .mode { visibility: hidden; }
+  .round.sound { width: 48px; height: 48px; background: var(--h-glass); } /* a 48 px glass circle, as drawn */
+  .sound[aria-pressed="true"] :global(svg:last-child), .sound[aria-pressed="false"] :global(svg:first-child) { display: none; }
+  :root:not([data-js]) .sound { visibility: hidden; }
 
   .pill {
     display: flex; align-items: center; gap: 8px; height: var(--touch); padding: 0 16px; border-radius: var(--radius-pill);
@@ -308,5 +316,5 @@ const ANGLES = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, p
     .map-title h2 { font-size: 64px; }
     .list { bottom: 32px; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1000px; }
   }
-  @media (prefers-reduced-motion: reduce) { .chip, .hint { transition: none; } .chip.near .badge { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .glass { transition: background-color 1s linear, color 1s linear; } .chip, .hint { transition: none; } .chip.near .badge { animation: none; } }
 </style>

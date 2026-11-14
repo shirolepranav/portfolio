@@ -56,7 +56,7 @@ const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (
     pointer-events: auto; /* the HUD layer itself lets clicks through to the canvas */
     padding: 8px 18px max(18px, env(safe-area-inset-bottom)); border-radius: var(--radius-panel) var(--radius-panel) 0 0;
     background: var(--p-bg); color: var(--p-text); border-top: 1px solid var(--p-line);
-    transform: translateY(0); transition: transform 0.45s cubic-bezier(0.2, 1.3, 0.4, 1), opacity 0.2s ease;
+    transform: translateY(0); transition: transform 0.45s cubic-bezier(0.2, 1.3, 0.4, 1), opacity 0.2s ease, background-color 1.2s ease 0.3s, color 1.2s ease 0.3s;
   }
   :root[data-mode="night"] .panel {
     --p-bg: rgb(11 22 32 / 0.95); --p-text: var(--paper); --p-body: var(--fog); --p-sub: var(--mist);
@@ -122,5 +122,18 @@ const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (
     .keep-label { font-size: 26px; }
     .keep-next { font-size: 11px; }
   }
-  @media (prefers-reduced-motion: reduce) { .panel, .panel[hidden], .keep :global(svg) { transition: none; } }
+  /* Rows appear one by one once the panel is up (the HUD sets each row's --d delay). */
+  .panel :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) {
+    opacity: 0; transform: translateY(12px);
+  }
+  .panel.rows-in :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) {
+    opacity: 1; transform: none;
+    transition: opacity 0.18s ease var(--d, 0s), transform 0.3s cubic-bezier(0.2, 1, 0.4, 1) var(--d, 0s);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .panel, .panel[hidden], .keep :global(svg) { transition: none; }
+    .panel { transition: background-color 1s linear, color 1s linear; } /* day and night: the one-second cross-fade */
+    .panel :global(:is(.intro, .text > p, .text > .sub, .rows > li, .groups > .group, .photos, .gallery > .line, .headline)) { transform: none; }
+    .panel.rows-in :global(*) { transition: none !important; }
+  }
 </style>

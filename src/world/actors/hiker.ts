@@ -1,17 +1,12 @@
 // The hiker: teal jacket, coral pack with a cream bedroll, gold toque with a pom-pom, two trekking poles.
 // Proportions and colours from hiker() in reference/scene/scene.py, rebuilt from capsules, spheres and
 // rounded boxes with smooth shading. One skinned mesh (one draw call); each part rides one bone rigidly.
-import {
-  Bone, CapsuleGeometry, CylinderGeometry, Float32BufferAttribute, Group, Matrix4, Quaternion, Skeleton, SkinnedMesh,
-  SphereGeometry, Uint16BufferAttribute, Vector3, type BufferGeometry, type Material, type Object3D,
-} from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { CylinderGeometry, Group, Vector3, type Bone, type BufferGeometry, type Material, type Object3D } from "three";
 import { C, S, type RGB } from "../config";
 import { angdiff, scaleRGB, smooth } from "../core";
 import { createBlobShadow } from "./shadow";
+import { makeParts, rig, type P } from "./parts";
 
-/** Where the hiker is and how it moves. Any replacement character only needs this interface. */
 export interface HikerPose {
   position: Vector3;  // feet, in world metres
   yaw: number;        // direction of travel; the hiker turns toward it on its own
@@ -22,13 +17,14 @@ export interface Hiker {
   update(dt: number, pose: HikerPose): void;
   /** true: cast a real shadow (shadow map tier). false: a soft blob on the ground. */
   setShadow(map: boolean): void;
+  /** Calls cb each time a foot lands, with how firmly (0 to 1): footstep sounds follow the walk cycle. */
+  onStep(cb: (loud: number) => void): void;
 }
 
 const H = 0.05 * S; // 1.75 m; every size below is a fraction of it
 const PANTS: RGB = [0.17, 0.19, 0.25], BOOTS: RGB = [0.24, 0.16, 0.12], JACKET: RGB = [0.1, 0.3, 0.36];
 const SKIN: RGB = [0.6, 0.42, 0.31], POLE: RGB = [0.78, 0.78, 0.82];
 
-type P = [number, number, number];
 // Bones as [parent, rest position]. Local axes: y up, z forward.
 const BONES: [number, P][] = [
   [-1, [0, 0.5, 0]],          // 0 pelvis
@@ -43,31 +39,7 @@ const BONES: [number, P][] = [
   [5, [0.165, 0.79, 0]],      // 9 left arm
   [5, [-0.165, 0.79, 0]],     // 10 right arm
 ];
-
-const Y = new Vector3(0, 1, 0), m4 = new Matrix4(), q = new Quaternion();
-
-/** One part in rest position: the geometry is in units of H, then placed, coloured and tied to a bone. */
-function part(g: BufferGeometry, color: RGB, bone: number, at: P, dir: P = [0, 1, 0], scale: P = [1, 1, 1]) {
-  q.setFromUnitVectors(Y, new Vector3(...dir).normalize());
-  g.deleteAttribute("uv");
-  const geo = (g.index ? g.toNonIndexed() : g).applyMatrix4(m4.compose(new Vector3(...at).multiplyScalar(H), q, new Vector3(...scale).multiplyScalar(H)));
-  const n = geo.attributes.position.count, col = new Float32Array(n * 3), idx = new Uint16Array(n * 4), wt = new Float32Array(n * 4);
-  for (let i = 0; i < n; i++) { col.set(color, i * 3); idx[i * 4] = bone; wt[i * 4] = 1; }
-  geo.setAttribute("color", new Float32BufferAttribute(col, 3));
-  geo.setAttribute("fx", new Float32BufferAttribute(new Float32Array(n * 2), 2)); // no glow, no snow wrap
-  geo.setAttribute("skinIndex", new Uint16BufferAttribute(idx, 4));
-  geo.setAttribute("skinWeight", new Float32BufferAttribute(wt, 4));
-  return geo;
-}
-/** Capsule between two cap centres. */
-function capsule(a: P, b: P, r: number, color: RGB, bone: number) {
-  const d: P = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(...d);
-  return part(new CapsuleGeometry(r, len, 3, 10), color, bone, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], d);
-}
-const rbox = (size: P, at: P, color: RGB, bone: number) =>
-  part(new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.min(...size) * 0.3), color, bone, at);
-const ball = (r: number, at: P, color: RGB, bone: number, squash: P = [1, 1, 1]) =>
-  part(new SphereGeometry(r, 14, 10), color, bone, at, [0, 1, 0], squash);
+const { part, capsule, rbox, ball } = makeParts(H);
 
 export function createHiker(material: Material): Hiker {
   const parts: BufferGeometry[] = [];
@@ -94,18 +66,7 @@ export function createHiker(material: Material): Hiker {
     ball(0.032, [0, 1.035, 0], C.cream, 8),
   );
 
-  const bones = BONES.map(() => new Bone());
-  BONES.forEach(([parent, p], i) => {
-    const base = parent < 0 ? [0, 0, 0] : BONES[parent][1];
-    bones[i].position.set(p[0] - base[0], p[1] - base[1], p[2] - base[2]).multiplyScalar(H);
-    (parent < 0 ? undefined : bones[parent])?.add(bones[i]);
-  });
-  const mesh = new SkinnedMesh(mergeGeometries(parts), material);
-  mesh.add(bones[0]);
-  mesh.updateMatrixWorld(true);
-  mesh.bind(new Skeleton(bones));
-  mesh.frustumCulled = false; // always in view while walking; the skinned bounds would lag the pose anyway
-  mesh.receiveShadow = true;
+  const { mesh, bones } = rig(parts, BONES, H, material);
 
   const blob = createBlobShadow(0.55, 0.7);
   const object = new Group();
@@ -114,11 +75,12 @@ export function createHiker(material: Material): Hiker {
   const [pelvis, thighL, shinL, thighR, shinR, spine, pack, head, pom, armL, armR] = bones;
   const rest = (b: Bone) => b.position.y;
   const pelvisY = rest(pelvis), packY = rest(pack);
-  let yaw = NaN, phase = 0, walkW = 0, t = 0;
+  let yaw = NaN, phase = 0, walkW = 0, t = 0, stepCb: (loud: number) => void = () => {};
 
   return {
     object,
     setShadow(map) { mesh.castShadow = map; blob.visible = !map; },
+    onStep(cb) { stepCb = cb; },
     update(dt, pose) {
       t += dt;
       if (Number.isNaN(yaw)) yaw = pose.yaw;
@@ -130,7 +92,10 @@ export function createHiker(material: Material): Hiker {
       // Walk cycle tied to speed: longer, quicker strides as speed rises; phase advances with distance.
       const v = pose.speed;
       walkW += (smooth(0.05, 1.2, v) - walkW) * (1 - Math.exp(-dt / 0.15));
+      // A foot lands at each end of the stride: where the phase passes a quarter turn plus a half turn.
+      const before = Math.floor((phase - Math.PI / 2) / Math.PI);
       phase += (2 * Math.PI * v * dt) / Math.min(3.2, 1.4 + 0.33 * v);
+      if (Math.floor((phase - Math.PI / 2) / Math.PI) !== before && walkW > 0.3) stepCb(Math.min(1, walkW * (0.6 + 0.1 * v)));
       const w = walkW, s = Math.sin(phase), c = Math.cos(phase), A = w * (0.3 + 0.05 * Math.min(v, 5.3));
       thighL.rotation.x = -A * s; thighR.rotation.x = A * s;               // negative swings a leg forward
       shinL.rotation.x = 1.3 * A * Math.max(0, c); shinR.rotation.x = 1.3 * A * Math.max(0, -c); // knee bends on the forward swing

@@ -1,6 +1,6 @@
 ---
 // Line icons from the designs. Decorative: the link text says what they do.
-interface Props { name: "arrow" | "back" | "out" | "down" | "sun" | "moon" | "close" | "scroll"; size?: number; stroke?: number }
+interface Props { name: "arrow" | "back" | "out" | "down" | "sun" | "moon" | "close" | "scroll" | "sound" | "mute"; size?: number; stroke?: number }
 const { name, size = 18, stroke = 2.2 } = Astro.props;
 const paths = {
   arrow: "M5 12h14M13 6l6 6-6 6", // go somewhere on this site
@@ -11,6 +11,8 @@ const paths = {
   down: "M12 4v12M6 11l6 6 6-6M5 20h14", // download
   sun: "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
   moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
+  sound: "M4 9v6h4l5 4V5L8 9H4zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12", // sound is on (Lake-Walk-Desktop)
+  mute: "M4 9v6h4l5 4V5L8 9H4zM16.5 9.5l5 5M21.5 9.5l-5 5",                       // sound is off (not drawn: the same speaker, crossed)
 };
 ---
 <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="round" stroke-linejoin="round"><path d={paths[name]} /></svg>

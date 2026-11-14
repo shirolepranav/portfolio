@@ -1,12 +1,15 @@
 // The lake: turquoise that deepens toward the centre, a soft mirrored reflection, sun or moon glitter,
 // and a pale foam line at the shore. Shading from shade() in reference/scene/shots.py.
-import { Color, type BufferGeometry, type ShaderMaterial } from "three";
+import { Color, Vector4, type BufferGeometry, type ShaderMaterial } from "three";
 import { Reflector } from "three/addons/objects/Reflector.js";
 import { U, WORLD_GLSL, type Env } from "./lighting";
+import { S } from "./config";
 
 const water = {
   uDeep: { value: new Color() }, uShallow: { value: new Color() }, uReflTint: { value: new Color() }, uFoam: { value: new Color() },
   uWaterLight: { value: 1 }, uReflMax: { value: 0.5 }, uSpecP: { value: 260 }, uSpecS: { value: 7 }, uRefl: { value: 1 }, uFovK: { value: 1 },
+  // Two ripple rings at a time (the moose drinking): world x and z divided by S, start time, strength.
+  uRip: { value: [new Vector4(0, 0, -99, 0), new Vector4(0, 0, -99, 0)] },
 };
 
 const shader = {
@@ -27,6 +30,7 @@ const shader = {
     uniform sampler2D tDiffuse;
     uniform vec3 uDeep, uShallow, uReflTint, uFoam;
     uniform float uWaterLight, uReflMax, uSpecP, uSpecS, uRefl, uFovK;
+    uniform vec4 uRip[ 2 ];
     varying vec4 vUv;
     varying vec3 vWorldPos;
     float hash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
@@ -44,7 +48,18 @@ const shader = {
       float dist = length( v );
       vec3 dir = v / dist;
       float k = clamp( 0.03 + 0.97 * pow( 1.0 - clamp( -dir.y, 0.0, 1.0 ), 3.2 ), 0.0, uReflMax );
-      float n1 = fbm2( P.xz * 30.0 ) - 0.5, n2 = fbm2( P.xz * 11.0 + vec2( 9.0, 0.0 ) ) - 0.5;
+      // The surface noise drifts slowly, so the glitter moves and the reflection wobbles.
+      vec2 drift = vec2( uTime * 0.011, uTime * 0.006 );
+      float n1 = fbm2( P.xz * 30.0 + drift * 30.0 ) - 0.5, n2 = fbm2( P.xz * 11.0 + vec2( 9.0, 0.0 ) - drift * 11.0 ) - 0.5;
+      // Ripple rings spreading out and fading over three seconds.
+      float rip = 0.0;
+      for ( int i = 0; i < 2; i++ ) {
+        vec2 q = P.xz - uRip[ i ].xy;
+        float age = uTime - uRip[ i ].z, r = length( q ), front = 0.003 + age * 0.018;
+        float wave = sin( ( r - front ) * 700.0 ) * sm( 0.016, 0.0, abs( r - front + 0.005 ) ) * uRip[ i ].w * sm( 3.2, 0.3, age ) * step( 0.0, age );
+        rip += wave;
+        n1 += wave * 0.35 * q.x / max( r, 1e-4 ); n2 += wave * 0.35 * q.y / max( r, 1e-4 );
+      }
       // Reflection, wobbled by the same noise; the shift shrinks with distance as in the scripts.
       float amp = min( 0.003 * uFovK / max( dist / WORLD_S, 0.05 ), 1.0 / 260.0 );
       vec3 rf = uRefl > 0.5
@@ -53,6 +68,7 @@ const shader = {
       vec3 cw = mix( wc, rf * uReflTint, k );
       vec3 nw = normalize( vec3( n1 * 0.22 + n2 * 0.10, 1.0, n2 * 0.22 - n1 * 0.08 ) );
       cw += uSunCol * pow( clamp( dot( reflect( dir, nw ), uSunDir ), 0.0, 1.0 ), uSpecP ) * uSpecS;
+      cw += abs( rip ) * 0.35 * uShallow * uWaterLight;   // the rings catch the light
       cw = mix( cw, uFoam, sm( 0.972, 0.997, t ) * 0.38 );
       gl_FragColor = vec4( worldFog( cw, vWorldPos ), 1.0 );
       #include <tonemapping_fragment>
@@ -67,8 +83,14 @@ export function createWater(geometry: BufferGeometry) {
   mesh.rotation.x = -Math.PI / 2;
   Object.assign((mesh.material as ShaderMaterial).uniforms, U, water);
   const reflect = mesh.onBeforeRender;
+  let next = 0;
   return {
     mesh,
+    /** Starts a ripple ring at a world point (metres), at time t in seconds. */
+    ripple(x: number, z: number, t: number, strength = 1) {
+      water.uRip.value[next].set(x / S, z / S, t, strength);
+      next = (next + 1) % 2;
+    },
     apply(env: Env) {
       water.uDeep.value.setRGB(...env.waterDeep); water.uShallow.value.setRGB(...env.waterShallow);
       water.uReflTint.value.setRGB(...env.reflTint);

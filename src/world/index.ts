@@ -2,7 +2,7 @@
 // the page passes in what it needs (the visible stops, prop counts, day or night, quality tier),
 // and listens to world.state for progress, the stop nearby, the open stop and the camera's view.
 import {
-  CustomToneMapping, LinearSRGBColorSpace, Mesh, PCFShadowMap, PerspectiveCamera, Ray, Scene, Sphere, Vector2, Vector3, WebGLRenderer,
+  CustomToneMapping, Group, LinearSRGBColorSpace, Mesh, type Material, PCFShadowMap, PerspectiveCamera, Ray, Scene, Sphere, Vector2, Vector3, WebGLRenderer,
 } from "three";
 import type { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import type { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
@@ -11,7 +11,8 @@ import { MeshBuilder, angdiff, cross, lerp, norm, smooth, toWorld, type V3 } fro
 import { createTerrain, radius } from "./terrain";
 import { createLanterns, createRocks, createTrees, type Rock } from "./flora";
 import { buildProps, createPropContext, type Block, type PropCounts, type PropLight } from "./props/index";
-import { createLights, makeEnv, worldMaterial, type Env } from "./lighting";
+import type { MaterialOptions } from "./lighting";
+import { U, createLights, makeEnv, sweepEnv, worldMaterial, type Env } from "./lighting";
 import { createSky } from "./sky";
 import { createWater } from "./water";
 import { corridor, mapShot, referenceShot, stepSlide, walkShot, type Shot, type ShotName } from "./camera";
@@ -19,6 +20,9 @@ import { propAnchor, stopShot, stopSpot } from "./stops";
 import { createState } from "./state";
 import { VMAX, createInput, type Command } from "./input";
 import { createHiker } from "./actors/hiker";
+import { createWildlife, type Actor, type ActorContext } from "./actors/animals";
+import { createBirds } from "./actors/birds";
+import { createAudio } from "./audio";
 
 export type { Mode, StopId, Tier } from "./config";
 export type { ShotName } from "./camera";
@@ -56,6 +60,7 @@ function mixEnv(a: Env, b: Env, k: number): Env {
     else if (Array.isArray(x)) out[key] = x.map((v, i) => lerp(v, (y as number[])[i], k));
   }
   out.sun = a.sun.clone().lerp(b.sun, k).normalize();
+  if (a.lightDir || b.lightDir) out.lightDir = (a.lightDir ?? a.sun).clone().lerp(b.lightDir ?? b.sun, k).normalize();
   return out as unknown as Env;
 }
 
@@ -69,12 +74,20 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const camera = new PerspectiveCamera(50, 1, 0.1, 5000);
 
   // Build: terrain, props and bridge merged into one mesh; trees, rocks and lanterns instanced.
-  const material = worldMaterial();
+  // The props' moving parts are small meshes of their own, in one group.
+  const reduced = opts.reducedMotion ?? false;
+  const materials: Material[] = [];
+  const makeMaterial = (o: MaterialOptions = {}) => { const m = worldMaterial(o); materials.push(m); return m; };
+  const material = makeMaterial();
   const terrain = createTerrain();
   const mesh = new MeshBuilder(), lightList: PropLight[] = [], rockList: Rock[] = [], blocks: Block[] = [];
-  buildProps(createPropContext(mesh, terrain, lightList, rockList, blocks), opts);
+  const moving = new Group(), wildlife = new Group();
+  let animalsOn = true;
+  const reactions = buildProps(createPropContext({
+    terrain, land: mesh, lights: lightList, rocks: rockList, blocks, group: moving, material: makeMaterial, reduced,
+  }), opts);
   terrain.addBridge(mesh);
-  const lanterns = createLanterns(terrain, material);
+  const lanterns = createLanterns(terrain, makeMaterial({ flicker: true }));
   for (const p of lanterns.lights) lightList.push({ p, color: [1.0, 0.7, 0.38], strength: 0.28, radius: 0.16, group: "lantern" });
   const rocks = createRocks(terrain, material, rockList);
   const clearings = [...Object.values(STOPS).map((d) => terrain.at(d, 1.2)), ...ANIMALS.map(([d, t]) => terrain.at(d, t))];
@@ -86,15 +99,21 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const sky = createSky();
   land.castShadow = land.receiveShadow = trees.crowns.castShadow = trees.crowns.receiveShadow = true;
   trees.trunks.castShadow = rocks.castShadow = rocks.receiveShadow = lanterns.mesh.castShadow = true;
-  scene.add(sky.dome, sky.stars, land, skirt, water.mesh, trees.crowns, trees.trunks, rocks, lanterns.mesh);
+  scene.add(sky.dome, sky.stars, land, skirt, water.mesh, trees.crowns, trees.trunks, rocks, lanterns.mesh, moving, wildlife);
   const lights = createLights(scene, lightList);
-  const hikerMaterial = worldMaterial(true);
+  const hikerMaterial = makeMaterial({ smooth: true });
   const hiker = createHiker(hikerMaterial);
   scene.add(hiker.object);
+  // Sound: off until the visitor turns it on. Footsteps follow the hiker's feet; the fire is heard from about 40 m.
+  const audio = createAudio();
+  hiker.onStep((loud) => audio.step(surface, loud));
+  const firePos = new Vector3(...toWorld(terrain.at(STOPS.campfire, 1.17)));
+  // Wildlife: the same smooth material as the hiker. Each animal is one draw call.
+  const actors: Actor[] = [...createWildlife(terrain, hikerMaterial), createBirds(terrain, hikerMaterial)];
+  wildlife.add(...actors.map((a) => a.object));
 
   // Stops: only the visible ones slow the walk, show a chip or open. A hidden stop's prop is scenery.
   const stops = opts.stops ?? (Object.keys(STOPS) as StopId[]);
-  const reduced = opts.reducedMotion ?? false;
   const spots = Object.fromEntries(stops.map((id) => [id, stopSpot(terrain, id)])) as Record<StopId, ReturnType<typeof stopSpot>>;
   const anchors = Object.fromEntries(stops.map((id) => {
     const a = propAnchor(terrain, id);
@@ -106,14 +125,20 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   const state = createState({
     progress: open0 ? stopProgress(open0) : wrap(opts.progress ?? START),
     near: null as StopId | null, stop: open0, view: (open0 ? "stop" : "walk") as "walk" | "stop" | "map",
+    arrived: open0 as StopId | null, // the stop whose panel is up: set once the camera is there and the prop has reacted
   });
+  // Arriving at a stop (PLAN.md, 1.2 s): the camera eases to the stop's shot (0.9 s), the prop reacts once the
+  // camera is nearly there (0.7 s), then the panel springs up (0.85 s) and its rows land by 1.2 s.
+  const STOP_FLIGHT = 0.9, REACT_AT = 0.7, PANEL_AT = 0.85;
+  state.on("arrived", (id) => { if (id) audio.chime(); }); // one soft chime as a panel opens
+  let arrival: { id: StopId; t: number; reacted: boolean } | null = open0 ? { id: open0, t: PANEL_AT - 0.3, reacted: false } : null;
   const input = createInput(canvas, opts.onCommand);
   // Metres of trail per degree. Steps are scaled by it so the pace stays even where the shore bulges out.
   const mPerDeg = (deg: number) => radius(T_TRAIL, deg * D2R) * S * D2R;
   let meanM = 0;
   for (let d = 0; d < 360; d++) meanM += mPerDeg(d) / 360;
   const feet = new Vector3(), prevFeet = new Vector3(), lastEye = new Vector3();
-  let facing = 1, slide = 0, look = 0, away = open0 ? 1 : 0, spotId: StopId | null = open0;
+  let facing = 1, slide = 0, look = 0, away = open0 ? 1 : 0, spotId: StopId | null = open0, surface: "sand" | "wood" = "sand";
   // A glide moves progress to a stop over one to three seconds, the shorter way round ("Keep walking", map jumps).
   let glide: { from: number; dp: number; t: number; dur: number; then: StopId | null } | null = null;
 
@@ -147,7 +172,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     // The hiker: on the trail, or walking out to (and back from) the open stop's spot.
     const deg = progressDeg(p);
     const trail = terrain.at(deg, T_TRAIL), tan = toWorld(terrain.frame(deg)[1], 1);
-    if (Math.abs(angdiff(deg * D2R, TV)) < 2.8 * D2R) trail[1] = Math.max(trail[1], 0.0195); // on the footbridge deck
+    const onBridge = Math.abs(angdiff(deg * D2R, TV)) < 2.8 * D2R;
+    if (onBridge) trail[1] = Math.max(trail[1], 0.0195); // on the footbridge deck
     const want = state.get("view") === "stop" ? 1 : 0;
     if (want) spotId = state.get("stop");
     const spot = spotId ? spots[spotId] : null;
@@ -164,11 +190,16 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     let yaw = Math.atan2(tan[0] * facing, tan[2] * facing);
     if (spot && k > 0 && k < 1 && moved > 0.05) yaw = Math.atan2(feet.x - prevFeet.x, feet.z - prevFeet.z);
     else if (spot && k === 1) { const f = toWorld(spot.face, 1); yaw = Math.atan2(f[0], f[2]); }
+    // Wood underfoot on the footbridge and out on the dock; sand everywhere else.
+    surface = onBridge || (spotId === "dock" && k > 0.2) ? "wood" : "sand";
     hiker.update(dt, { position: feet, yaw, speed: Math.min(moved, 12) });
     return deg;
   }
 
   let mode = opts.mode, tier: Tier = opts.tier ?? pickTier();
+  // Day to night: night runs 0 (day) to 1 (night) over 1.8 s when the mode changes (a 1 s cross-fade with reduced motion).
+  let night = mode === "night" ? 1 : 0, nightPin: number | null = null, clock = 0, started = false;
+  const SWEEP = reduced ? 1 : 1.8;
   let shot: Shot, shotName: ShotName | null = null; // shotName: a debug reference shot pinned in place
   let composer: EffectComposer | null = null, bloom: UnrealBloomPass | null = null;
   const frameHooks: ((now: number) => void)[] = [];
@@ -176,14 +207,18 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   let blend: { from: Shot; t: number; dur: number } | null = null, envDirty = true, lastFov = 0;
   const stopShots = new Map<string, Shot>();
   const portrait = () => canvas.clientWidth < canvas.clientHeight;
-  const envOf = (s: Shot) => { const e = makeEnv(mode, ...s.sun[mode]); s.tweak?.(e); return e; };
+  const envOf = (s: Shot) => {
+    const d = makeEnv("day", ...s.sun.day), n = makeEnv("night", ...s.sun.night);
+    s.tweak?.(d); s.tweak?.(n);
+    return sweepEnv(d, n, nightPin ?? night, reduced);
+  };
 
   function applyEnv(env: Env, backdrop: number) {
     renderer.toneMappingExposure = env.exposure;
     lights.apply(env); sky.apply(env, backdrop); water.apply(env);
     skirt.visible = backdrop > 0; // the underside only shows from the orbit views
     // The scripts' bloom is three small blurs; UnrealBloom spreads much wider, so it runs weaker and tighter.
-    if (bloom) { bloom.strength = env.night ? 0.3 : 0.05; bloom.threshold = env.night ? 1.15 : 1.6; bloom.radius = 0.1; }
+    if (bloom) { bloom.strength = lerp(0.05, 0.3, env.n); bloom.threshold = lerp(1.6, 1.15, env.n); bloom.radius = 0.1; }
   }
   const applyMode = () => applyEnv(envOf(shot), shot.orbit ? 1 : 0);
 
@@ -238,7 +273,12 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   /** Switches what the camera shows, flying there over `dur` seconds (a cut with reduced motion). */
   function setView(view: "walk" | "stop" | "map", stop: StopId | null, dur = 1.2) {
     if (state.get("view") === view && state.get("stop") === stop) return;
-    blend = reduced || shotName ? null : { from: shot, t: 0, dur };
+    const was = state.get("stop");
+    if (was && was !== stop) { reactions[was].end(); state.set("arrived", null); }
+    // With a cut (reduced motion or a pinned debug shot) there is no flight to wait for.
+    const cut = reduced || !!shotName;
+    arrival = view === "stop" && stop ? { id: stop, t: cut ? PANEL_AT : 0, reacted: false } : null;
+    blend = cut ? null : { from: shot, t: 0, dur };
     envDirty = true;
     input.enabled = view === "walk";
     input.spinning = view === "map";
@@ -249,7 +289,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   function openStop(id: StopId) {
     if (!stops.includes(id)) return;
     glide = null;
-    setView("stop", id);
+    setView("stop", id, STOP_FLIGHT);
   }
 
   /** Walks to a stop over one to three seconds, the shorter way, then opens it if asked. */
@@ -309,9 +349,11 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     water.setReflection(q.reflection);
     renderer.shadowMap.enabled = q.shadows;
     hiker.setShadow(q.shadows);
-    material.needsUpdate = hikerMaterial.needsUpdate = true; // shadows on or off change the shader
+    for (const a of actors) a.setShadow(q.shadows);
+    for (const m of materials) m.needsUpdate = true; // shadows on or off change the shader
     resize();
     void setGlow(q.glow);
+    if (started) warmUp();
   }
 
   input.enabled = !open0;
@@ -319,21 +361,66 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
   setTier(tier);
   addEventListener("resize", resize);
 
+  const lampBoost = (i: number, k: number) => lights.boost(lights.lamps[i], k);
+  const life: ActorContext = { dt: 0, t: 0, hiker: feet, eye: camera.position, night: 0, ripple: (x, z) => water.ripple(x, z, clock) };
+  /** Steps the arrival at a stop: the prop reacts, then the panel's turn comes (state "arrived"). */
+  function arrive(dt: number) {
+    if (!arrival) return;
+    arrival.t += dt;
+    if (!arrival.reacted && arrival.t >= (reduced ? 0 : REACT_AT)) { arrival.reacted = true; reactions[arrival.id].start(); }
+    if (arrival.t >= PANEL_AT) { state.set("arrived", arrival.id); arrival = null; }
+  }
+
+  /** Compiles the night shaders (lamps on) in the background, so the first sweep never stalls on a compile. */
+  function warmUp() {
+    const off = lights.allOn();
+    void renderer.compileAsync(scene, camera);
+    off();
+  }
+
   let resolveReady: () => void;
   const ready = new Promise<void>((r) => (resolveReady = r));
   let first = true, last = 0;
-  renderer.setAnimationLoop((now) => {
-    const dt = Math.min(0.1, (now - last) / 1000 || 0); // a long pause (a hidden tab) never becomes one huge step
-    last = now;
+  /** One frame: walk, sweep, camera, lights, reactions, then draw. dt in seconds. */
+  function frame(dt: number, now: number, draw = true) {
+    clock += dt;
+    U.uTime.value = clock;
     const deg = walk(dt);
+    // The sweep: night eases toward the chosen mode, and the light set follows every frame until it lands.
+    const want = mode === "night" ? 1 : 0;
+    if (night !== want) {
+      night = want > night ? Math.min(want, night + dt / SWEEP) : Math.max(want, night - dt / SWEEP);
+      envDirty = true;
+    }
     if (!shotName) moveCamera(deg, dt);
+    else if (envDirty) { applyMode(); envDirty = false; }
+    lights.tick(clock);
+    arrive(dt);
+    const fd = feet.distanceTo(firePos);
+    audio.update(nightPin ?? night, (3 / Math.max(fd, 3)) * smooth(42, 25, fd)); // full beside the fire, a tenth of that at 30 m
+    for (const r of Object.values(reactions)) r.update(dt, clock, lampBoost);
+    if (animalsOn) {
+      life.dt = dt; life.t = clock; life.night = nightPin ?? night;
+      for (const a of actors) a.update(life);
+    }
     for (const f of frameHooks) f(now);
     camera.near = Math.max(0.1, camera.position.length() * 0.004); // tighter depth range for close shots
     camera.updateProjectionMatrix();
     renderer.info.reset();
+    if (!draw) return;
     if (composer) composer.render(); else renderer.render(scene, camera);
-    if (first) { first = false; resolveReady(); }
-  });
+    if (first) { first = false; started = true; resolveReady(); warmUp(); }
+  }
+  let frozen = false;
+  const loop = (now: number) => {
+    const dt = Math.min(0.1, (now - last) / 1000 || 0); // a long pause never becomes one huge step
+    last = now;
+    if (!frozen) frame(dt, now);
+  };
+  renderer.setAnimationLoop(loop);
+  // A hidden tab: stop drawing altogether (PLAN.md, Loading and fallbacks). The audio pauses itself.
+  const onVisible = () => { renderer.setAnimationLoop(document.hidden ? null : loop); last = performance.now(); };
+  document.addEventListener("visibilitychange", onVisible);
 
   const v = new Vector3(), ray = new Ray(), sphere = new Sphere();
   /** CSS pixel position of a world point on the canvas; front is false when it is behind the camera. */
@@ -349,7 +436,17 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     get shot() { return shot; },
     /** True while the camera is flying between views. */
     get moving() { return !!blend || !!glide; },
-    setMode(m: Mode) { mode = m; envDirty = true; if (shotName) applyMode(); },
+    /** Day or night. The light sweeps there, lamps coming on round the loop from where the hiker stands. */
+    setMode(m: Mode) {
+      if (m === mode) return;
+      mode = m;
+      lights.litFrom(progressDeg(state.get("progress")), reduced ? 0 : 0.4);
+      envDirty = true;
+    },
+    /** How far toward night the light is, 0 to 1 (mid-sweep in between). */
+    get night() { return nightPin ?? night; },
+    /** Debug: holds the sweep at n (0 day to 1 night), or null to let it run. */
+    pinSweep(n: number | null) { nightPin = n; envDirty = true; },
     setTier,
     openStop,
     goTo,
@@ -383,5 +480,25 @@ export function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions) {
     /** Drops the lens shift, for free looking around. */
     clearShift() { shot = { ...shot, shift: [0, 0] }; placeCamera(shot); camera.updateProjectionMatrix(); },
     onFrame(f: (now: number) => void) { frameHooks.push(f); },
+    /** Debug: stops the clock (true), or steps it by dt seconds and draws, for frame-exact screenshots. */
+    freeze(on: boolean) { frozen = on; },
+    step(dt: number, frames = 1) { for (let i = 0; i < frames; i++) frame(dt, performance.now(), i === frames - 1); },
+    /** Whether the render loop is running (false on a hidden tab). */
+    get running() { return !document.hidden; },
+    /** Sound on or off. Call it from a click or key press (browsers only start audio on one). */
+    setSound(on: boolean) { audio.set(on); },
+    get sound() { return audio.on; },
+    /** After the first click or key press, resumes sound that was left on (autoplay rules). */
+    unlockSound() { audio.unlock(); },
+    audio,
+    /** Every animal, for the clearance audit. */
+    actors,
+    /** Wildlife on or off (debug comparisons). */
+    setAnimals(on: boolean) { animalsOn = on; wildlife.visible = on; },
+    get animals() { return animalsOn; },
+    /** The open panel's row i has appeared: the tent or canoe for it bounces or bobs. */
+    row(id: StopId, i: number) { reactions[id].row?.(i); },
+    /** Debug: plays a stop's reaction now, and ends it after `hold` seconds. */
+    react(id: StopId, hold = 4) { reactions[id].start(); setTimeout(() => { if (state.get("stop") !== id) reactions[id].end(); }, hold * 1000); },
   };
 }
