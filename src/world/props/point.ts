@@ -22,7 +22,7 @@ export function point({ terrain, part, rock, block, moving, add: addObject, redu
   part(limb(lift(top, 0.008), sub(lift(top, 0.008), mul(out, 0.016)), 0.009, 0.009, tan), [0.2, 0.2, 0.23]);
   // A small flash unit on top of the camera, lit by the flash, and the burst of light itself at the lens.
   const unit = moving((b) => b.part(box([0, 0, 0], [0.008, 0.006, 0.006]), [0.85, 0.86, 0.9], { emis: 4 }), [{ p: lift(top, 0.019) }]);
-  const glow = createGlow([1.0, 0.97, 0.9], 0.11 * S);
+  const glow = createGlow([1.0, 0.97, 0.9], 0.055 * S);
   glow.mesh.position.set(...toWorld(sub(lift(top, 0.014), mul(out, 0.02))));
   addObject(glow.mesh);
 
@@ -35,7 +35,7 @@ export function point({ terrain, part, rock, block, moving, add: addObject, redu
       t += dt;
       // A sharp burst at 0.05 s that dies away in a third of a second (just on and off with reduced motion).
       const k = reduced ? (t < 0.2 ? 0.6 : 0) : t < 0.05 ? t / 0.05 : Math.exp(-(t - 0.05) * 11);
-      glow.set(2.6 * k);
+      glow.set(1.8 * k);
       unit.glow.set(k > 0.01 ? 1 : 0, 3 * k);
       if (t > 1) { t = -1; glow.set(0); unit.glow.set(0, 0); }
     },
