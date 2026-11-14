@@ -1,7 +1,7 @@
 // The lake HUD's behaviour: rail, chip, pins, mini-map, panels, map, keys and addresses.
 // The markup and every word come from Hud.astro and site.ts; this file only moves and fills them.
 import { progressDeg } from "../world/config";
-import { stopProgress, type Command, type StopId, type World } from "../world/index";
+import { stopProgress, type Command, type StopId, type View, type World } from "../world/index";
 
 interface Stop { id: StopId; num: string; name: string; tag: string }
 interface Data { stops: Stop[]; ui: Record<string, string> }
@@ -13,6 +13,8 @@ const FOCUSABLE = "a[href], button:not([disabled]), [tabindex]:not([tabindex='-1
 
 /** True for the desktop layout (it matches the CSS breakpoint). */
 const desktop = matchMedia("(min-width: 900px) and (orientation: landscape)");
+/** True on the /lake address (the landing page moves there with the History API). */
+export const onLake = () => /^\/lake\/?$/.test(location.pathname);
 
 export function startHud(world: World) {
   const hud = $("[data-hud]");
@@ -150,6 +152,7 @@ export function startHud(world: World) {
     world.close();
   }
   addEventListener("popstate", () => {
+    if (!onLake()) return; // the landing's flight back up handles the rest
     const id = location.hash.slice(1);
     pushed = !!id;
     if (isStop(id)) world.goTo(id, true); else world.close();
@@ -201,7 +204,7 @@ export function startHud(world: World) {
     remember();
     requestAnimationFrame(() => { showRows(open, id); $("h2", open).focus({ preventScroll: true }); });
   };
-  const onView = (v: "walk" | "stop" | "map") => {
+  const onView = (v: View) => {
     hud.dataset.view = v;
     map.hidden = v !== "map";
     if (v === "map") { remember(); requestAnimationFrame(() => $("h2", map).focus({ preventScroll: true })); }
@@ -302,13 +305,13 @@ export function startHud(world: World) {
   new MutationObserver(syncMode).observe(document.documentElement, { attributes: true, attributeFilter: ["data-mode"] });
 
   // ---- Sound: off until the visitor turns it on; the choice is remembered (localStorage, which can be blocked). ----
-  const soundBtn = $<HTMLButtonElement>("[data-sound]");
+  const soundBtns = $$<HTMLButtonElement>("[data-sound]"); // the lake's, and the landing's on the landing page
   const setSound = (on: boolean, save = true) => {
     world.setSound(on);
-    soundBtn.setAttribute("aria-pressed", String(on));
+    for (const b of soundBtns) b.setAttribute("aria-pressed", String(on));
     if (save) try { localStorage.setItem("lake:sound", on ? "on" : "off"); } catch {}
   };
-  soundBtn.addEventListener("click", () => setSound(!world.sound));
+  for (const b of soundBtns) b.addEventListener("click", () => setSound(!world.sound));
   try { if (localStorage.getItem("lake:sound") === "on") setSound(true, false); } catch {}
   // Browsers start audio only after a click or key press, so sound left on last time starts on the first one.
   const unlock = () => world.unlockSound();
@@ -318,21 +321,25 @@ export function startHud(world: World) {
   // ---- Keys from the world's input: E or Enter, Esc, M, N, and left and right with a panel open. ----
   function command(c: Command) {
     const view = state.get("view"), open = state.get("stop");
+    if (c === "mode") { cycles[0].click(); return; }
+    if (view === "landing" || view === "dive") return; // the lake's keys wait until the dive lands
     if (c === "open" && view === "walk" && state.get("near")) visit(state.get("near")!);
     else if (c === "close") { if (view === "map") toggleMap(false); else if (open) closeStop(); }
     else if (c === "map") toggleMap();
-    else if (c === "mode") cycles[0].click();
     else if ((c === "prev" || c === "next") && open) visit(stops[(index(open) + (c === "next" ? 1 : n - 1)) % n].id);
   }
 
-  // ---- First visit: one hint for three seconds. ----
+  // ---- First visit: one hint for three seconds, once the walk starts (after the dive, from the landing). ----
   const hint = $("[data-hint]");
-  try {
-    if (!localStorage.getItem("lake:hinted") && state.get("view") === "walk") {
+  const showHint = () => {
+    try {
+      if (localStorage.getItem("lake:hinted")) return;
       localStorage.setItem("lake:hinted", "1");
       world.ready.then(() => { hint.hidden = false; setTimeout(() => (hint.hidden = true), 3000); });
-    }
-  } catch {}
+    } catch {}
+  };
+  if (state.get("view") === "walk") showHint();
+  else if (state.get("view") === "landing") { const off = state.on("view", (v) => { if (v === "walk") { off(); showHint(); } }); }
 
   return { command };
 }

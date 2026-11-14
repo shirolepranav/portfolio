@@ -4,14 +4,16 @@
 // &stop=<id> opens a stop at once (no glide), &map=1 opens the map, &panel=0 hides the panel,
 // &sweep=0..1 holds the day-to-night sweep at that point, &animals=0 hides the wildlife.
 // Buttons: each prop's reaction on demand, the sweep (the page's day or night toggle), and wildlife on or off.
-// From the console: clearance() checks the walking camera all round the loop, every stop shot, and the flights,
-// against trees, props and the wildlife; wildlifeTrail() checks no animal ever steps onto the trail.
+// After the dive or the flight back up, the panel shows its frame count, worst frame and frames over 20 ms.
+// From the console: clearance() checks the walking camera all round the loop, every stop shot, the flights and the
+// dive, against trees, props and the wildlife; wildlifeTrail() checks no animal ever steps onto the trail.
+// The landing (/?debug) takes the same tools; world.turn sets the island's turn for frame-exact screenshots.
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Raycaster, SkinnedMesh, Vector3 } from "three";
 import { radius } from "./terrain";
 import { TIERS, T_TRAIL, progressDeg, type Tier } from "./config";
 import { VMAX } from "./input";
-import { SHOTS, blocked, corridor, mapShot, stepSlide, walkShot, type Shot, type ShotName } from "./camera";
+import { SHOTS, blocked, corridor, diveEase, divePath, landingShot, mapShot, stepSlide, walkShot, type Shot, type ShotName } from "./camera";
 import { cross, lift, norm, smooth, type V3 } from "./core";
 import { stopShot, stopSpot } from "./stops";
 import { stopProgress, type StopId, type World } from "./index";
@@ -82,9 +84,24 @@ export function startDebug(world: World, params: URLSearchParams) {
   };
   const k = (n: number) => `${(n / 1000).toFixed(0)}k`;
 
+  // The dive (or the flight back up): every frame's interval, summed up in the panel once it lands, for checking on a phone.
+  const diveLine = document.createElement("div");
+  let gaps: number[] | null = null, lastNow = 0;
+  world.state.on("view", (v) => {
+    if (v === "dive") { gaps = []; return; }
+    if (!gaps?.length) return;
+    const worst = Math.max(...gaps), slow = gaps.filter((g) => g > 20).length;
+    diveLine.textContent = `last flight: ${gaps.length} frames · worst ${worst.toFixed(1)} ms · ${slow} over 20 ms`;
+    console.info(diveLine.textContent, gaps);
+    gaps = null;
+  });
+  panel.append(diveLine);
+
   // Frames per second over one-second windows. "All" counts every pass of the last frame: shadow, mirror, camera, glow.
   let frames = 0, since = performance.now();
   world.onFrame((now) => {
+    if (gaps && lastNow) gaps.push(now - lastNow);
+    lastNow = now;
     if (controls.enabled) controls.update();
     frames++;
     const p = world.state.get("progress");
@@ -247,13 +264,79 @@ export function startDebug(world: World, params: URLSearchParams) {
         fly(s, map, () => null, `${id} stop to map${portrait ? " portrait" : ""}`);
       }
     }
+    // The dive (and the flight back up, which retraces it): the hiker anywhere on the loop (every 15 degrees), the
+    // landing island turned four ways, both orientations, every frame at 60 fps, with trees cleared as in play.
+    // The eye's height is measured on the raw curve, before the one-metre floor. Trees, props and animals in the
+    // sight line to the hiker count over the last second, as the camera settles behind the hiker.
+    // Animals on the dive, exactly: any animal whose reach comes within 10 m of the eye, or (over the last second)
+    // crosses the sight line, is posed at that moment; its mesh's nearest vertex to the eye is measured, and the
+    // sight line is raycast against it.
+    const segDist = (p: V3, q: V3, c: V3) => {
+      const ab: V3 = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], l2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2 || 1;
+      const k = Math.max(0, Math.min(1, ((c[0] - p[0]) * ab[0] + (c[1] - p[1]) * ab[1] + (c[2] - p[2]) * ab[2]) / l2));
+      return Math.hypot(p[0] + ab[0] * k - c[0], p[1] + ab[1] * k - c[1], p[2] + ab[2] * k - c[2]);
+    };
+    const dm = { gap: Infinity, sight: 0, who: "" };
+    const diveAnimals = (eye: V3, chest: V3 | null, hp: V3, dt: number) => {
+      clock += dt;
+      hikerW.set(hp[0] * S, hp[1] * S, -hp[2] * S);
+      eyeW.set(eye[0] * S, eye[1] * S, -eye[2] * S);
+      world.actors.forEach((a, i) => {
+        const own = spheres.filter((q) => q.i === i);
+        const close = own.some(({ c, r }) => Math.hypot(eye[0] - c[0], eye[1] - c[1], eye[2] - c[2]) < r + 10 / S);
+        const line = !!chest && own.some(({ c, r }) => segDist(eye, chest, c) < r);
+        if (!close && !line) return;
+        a.update({ dt, t: clock, hiker: hikerW, eye: eyeW, night: 0, ripple: () => {} });
+        a.object.updateMatrixWorld(true);
+        for (const m of meshes[i]) { m.skeleton.update(); m.computeBoundingSphere(); }
+        if (line && hitBetween(eye, chest!, meshes[i]).length) { dm.sight++; console.warn("animal hides the hiker on the dive:", i, label); }
+        for (const m of meshes[i])
+          for (let k = 0, n = m.geometry.attributes.position.count; k < n; k += 2) {
+            m.getVertexPosition(k, to); m.localToWorld(to);
+            const d = to.distanceTo(eyeW);
+            if (d < dm.gap) { dm.gap = d; dm.who = `animal ${i}, ${label}`; }
+          }
+      });
+    };
+    const flight = { ground, tree, sight, props }, flightWild = { ...wild };
+    ground = tree = Infinity; sight = props = 0;
+    Object.assign(wild, { eye: Infinity, sight: 0, corridor: 0 });
+    let dives = 0, floor = 0, speed = 0, diveWorst = "";
+    const FRAMES = 150; // 2.5 s at 60 fps
+    for (const portrait of [false, true])
+      for (const spin of [0, 90, 180, 270])
+        for (let deg = -90; deg < 270; deg += 15) {
+          const w = walkShot(terrain, deg, portrait, 0, stepSlide(terrain, deg, 1, portrait, 0, blocks, 0, 10));
+          const path = divePath(terrain, landingShot(terrain, portrait, portrait ? 390 / 844 : 1.6, spin), w, deg);
+          const hp = terrain.at(deg, T_TRAIL), chest = lift(hp, 0.035);
+          let prev: V3 | null = null;
+          for (let i = 0; i <= FRAMES; i++) {
+            const u = diveEase(i / FRAMES), shot = path.at(u), raw = toV(path.curve.getPointAt(u)), eye = toV(shot.eye), late = i >= FRAMES - 60;
+            label = `${portrait ? "portrait" : "landscape"} spin ${spin} hiker at ${deg} deg, ${(i / 60).toFixed(2)} s in`;
+            trees.clearAround(shot.clear);
+            const g = (raw[1] - terrain.ground(raw[0], raw[2])) * S;
+            if (g < ground) { ground = g; diveWorst = label; }
+            if (g < 0.03 * S) floor++;
+            if (prev) speed = Math.max(speed, Math.hypot(eye[0] - prev[0], eye[1] - prev[1], eye[2] - prev[2]) * S * 60);
+            prev = eye;
+            treeCheck(eye, late ? chest : null);
+            animalCheck(eye, late ? chest : null, shot.clear);
+            diveAnimals(eye, late ? chest : null, hp, 1 / 60);
+            if (late && blocked(eye, hp, blocks)) { props++; console.warn("prop hides the hiker on the dive:", label); }
+          }
+          dives++;
+        }
     follow();
     const out = {
       minGroundGapM: +walk.ground.toFixed(2), minTreeGapM: +walk.tree.toFixed(2), treeSightHits: walk.sight, propHits: walk.props, maxEyeStepM: +jump.toFixed(2),
-      stopsAndFlights: flights, flightMinGroundGapM: +ground.toFixed(2), flightMinTreeGapM: +tree.toFixed(2), flightTreeSightHits: sight, flightPropHits: props, lowest: worst,
+      stopsAndFlights: flights, flightMinGroundGapM: +flight.ground.toFixed(2), flightMinTreeGapM: +flight.tree.toFixed(2), flightTreeSightHits: flight.sight, flightPropHits: flight.props, lowest: worst,
       walkAnimalSightHits: walkWild.sightMesh, walkAnimalCorridorHits: walkWild.corridorMesh, walkMinAnimalGapM: walkWild.worstMesh,
       walkReachSphereSightHits: walkWild.sight, walkReachSphereCorridorHits: walkWild.corridor, walkMinReachSphereGapM: +walkWild.eye.toFixed(2),
-      flightAnimalSightHits: wild.sight, flightAnimalCorridorHits: wild.corridor, flightMinAnimalGapM: +wild.eye.toFixed(2),
+      flightAnimalSightHits: flightWild.sight, flightAnimalCorridorHits: flightWild.corridor, flightMinAnimalGapM: +flightWild.eye.toFixed(2),
+      dives, diveMinGroundGapM: +ground.toFixed(2), diveLowest: diveWorst, diveFramesUnderOneMetre: floor, diveMinTreeGapM: +tree.toFixed(2),
+      diveTreeSightHits: sight, divePropHits: props, diveAnimalSightHits: dm.sight, diveMinAnimalGapM: +dm.gap.toFixed(2), diveClosestAnimal: dm.who,
+      diveReachSphereSightHits: wild.sight, diveReachSphereCorridorHits: wild.corridor, diveMinReachSphereGapM: +wild.eye.toFixed(2),
+      diveTopSpeedMps: +speed.toFixed(0),
     };
     console.table(out);
     if (Object.keys(byAnimal).length) console.warn("animal sight hits by animal:", JSON.stringify(byAnimal));

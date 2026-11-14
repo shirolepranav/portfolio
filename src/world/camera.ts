@@ -1,8 +1,8 @@
 // Camera set-ups for the reference frames, ported from shot() in reference/scene/shots.py,
 // and the trail-follow camera, which is the walk shot moved to wherever the hiker stands.
-import { Vector3 } from "three";
+import { CatmullRomCurve3, Vector3 } from "three";
 import { D2R, S, T_TRAIL } from "./config";
-import { add, cross, lift, mul, norm, sub, toWorld, type V3 } from "./core";
+import { add, cross, lerp, lift, mul, norm, smooth, sub, toWorld, type V3 } from "./core";
 import type { Env } from "./lighting";
 import type { Terrain } from "./terrain";
 import type { Block } from "./props/index";
@@ -86,6 +86,57 @@ export function mapShot(terrain: Terrain, portrait: boolean, spin = 0): Shot {
   return { ...s, eye: turn(s.eye.clone()), target: turn(s.target.clone()), ...(portrait ? {} : { fov: 50, shift: [0, -0.02] as [number, number] }) };
 }
 const UP = new Vector3(0, 1, 0);
+
+/**
+ * The landing: the diorama frame (dioramap on phones), fitted to the screen as the still is (object-fit: cover),
+ * so the live island lands on the still. A wider screen crops the frame's top and bottom, a narrower one its sides.
+ * Turned `spin` degrees round the island; `bob` (units) lowers the camera, so the island rises.
+ */
+export function landingShot(terrain: Terrain, portrait: boolean, aspect: number, spin = 0, bob = 0): Shot {
+  const s = referenceShot(portrait ? "dioramap" : "diorama", terrain), a = spin * D2R, k = aspect / (s.size[0] / s.size[1]);
+  const place = (v: Vector3) => v.applyAxisAngle(UP, a).setY(v.y - bob * S);
+  return {
+    ...s, eye: place(s.eye), target: place(s.target),
+    fov: k > 1 ? (2 * Math.atan(Math.tan((s.fov * D2R) / 2) / k)) / D2R : s.fov,
+    shift: k > 1 ? [s.shift[0], s.shift[1] * k] : [s.shift[0] / k, s.shift[1]],
+  };
+}
+
+/** The dive's timing: fast off the orbit, slowing all the way down to the hiker. 0 to 1 along the path. */
+export const diveEase = (t: number) => 1 - (1 - smooth(0, 1, t)) ** 2.2;
+
+const SKIM = 0.18; // units over the water at the dive's lowest point: about 6 m
+
+/**
+ * The dive from the landing orbit `a` to the walking camera `b`, for a hiker at `deg`. One curve that keeps turning
+ * the same way: it swings out to the hiker's back over the low hills, skims the water about 6 m up, then runs in
+ * along the shore to settle behind the hiker. at(u) is the shot u of the way along it (0 at a, 1 at b).
+ * From the map (an orbit view) it is a plain glide between the two.
+ */
+export function divePath(terrain: Terrain, a: Shot, b: Shot, deg: number) {
+  const over = (p: V3, h: number) => v3([p[0], Math.max(0, terrain.ground(p[0], p[2])) + h, p[2]]);
+  // Through a point high over the hills 52 degrees behind the hiker, then low over the water 28 degrees behind.
+  // Tuned with clearance() in debug.ts: no trees, props or animals in the way, wherever the hiker stands.
+  const pts = b.orbit ? [a.eye, b.eye] : [a.eye, over(terrain.at(deg - 52, 1.75), 0.42), over(terrain.at(deg - 28, 0.72), SKIM), b.eye];
+  const curve = new CatmullRomCurve3(pts, false, "centripetal");
+  return {
+    a, b, curve,
+    at(u: number): Shot {
+      const eye = curve.getPointAt(u), target = a.target.clone().lerp(b.target, u), e = toScript(eye);
+      const gap = e[1] - terrain.ground(e[0], e[2]);
+      eye.y = Math.max(eye.y, (terrain.ground(e[0], e[2]) + 0.03) * S); // never below a metre off the ground
+      const vd = norm([target.x - eye.x, 0, -(target.z - eye.z)]);
+      return {
+        ...b, eye, target, fov: lerp(a.fov, b.fov, u), shift: [lerp(a.shift[0], b.shift[0], u), lerp(a.shift[1], b.shift[1], u)],
+        orbit: u < 0.5 ? a.orbit : b.orbit,
+        // Low down, trees clear out of the way as for the other flights; up high, the forest stays whole.
+        clear: u === 1 ? b.clear : gap < 0.3 ? corridor(e, vd, cross([0, 1, 0], vd), 0.5) : [],
+      };
+    },
+  };
+}
+export type DivePath = ReturnType<typeof divePath>;
+const toScript = (v: Vector3): V3 => [v.x / S, v.y / S, -v.z / S];
 
 /**
  * The walking camera for a hiker at `deg`: behind and above, looking between the trail ahead and the far shore
