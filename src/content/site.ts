@@ -131,6 +131,7 @@ export const site = {
       stop: "camp",
       kind: "projects",
       label: "iOS apps",
+      short: "Apps",
       title: "Apps I have shipped",
       intro: "One tent per app. Each one designed, built and launched solo.",
       itemType: "iOS app",
@@ -195,6 +196,21 @@ export const site = {
 
   // Small interface words. Change wording here, not in components.
   ui: {
+    // Landing
+    portfolioMark: "Portfolio · 2026",
+    landingWalk: "Walk the lake",
+    landingWalkSub: "3D world · {stops} stops · scroll to hike", // {stops} = number of stops shown
+    landingHighlights: "Just the highlights",
+    landingHighlightsSub: "One page · made for recruiters",
+    landingNote: "Best with sound. On a slow connection, Highlights loads instantly.",
+    dayOrNight: "Day or night",
+    dayMode: "Day mode",
+    nightMode: "Night mode",
+    landingStillAlt: "A low-poly floating island: a turquoise lake ringed by snowy peaks, with a waterfall spilling off the edge",
+    landingStillNightAlt:
+      "The same floating island at night under a starry sky, with lanterns and tents glowing around the lake",
+
+    // Highlights
     tour: "3D tour",
     resume: "Résumé",
     downloadResume: "Download résumé",
