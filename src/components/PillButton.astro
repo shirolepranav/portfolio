@@ -1,0 +1,42 @@
+---
+// Primary button: a pill with a display-type label and a 44 px round icon badge at the right end.
+import Icon from "./Icon.astro";
+
+interface Props {
+  href: string;
+  icon?: "arrow" | "down";
+  tone?: "ink" | "teal"; // ink on light grounds, teal on dark
+  download?: boolean;
+}
+const { href, icon = "arrow", tone = "ink", download = false } = Astro.props;
+---
+<a class:list={["pill", tone]} href={href} download={download || undefined}>
+  <span class="text"><slot /></span>
+  <span class="badge"><Icon name={icon} size={20} /></span>
+</a>
+
+<style>
+  .pill {
+    display: inline-flex; align-items: center; gap: 16px;
+    min-height: 64px; padding: 0 10px 0 26px; border-radius: var(--radius-pill);
+    text-decoration: none;
+  }
+  .text {
+    font-family: var(--font-display); font-weight: 800; font-size: 24px; line-height: 1;
+    text-transform: uppercase; letter-spacing: 0.01em;
+  }
+  .badge {
+    flex: none; width: var(--touch); height: var(--touch); border-radius: 50%;
+    display: grid; place-items: center; transition: transform 0.18s ease;
+  }
+  .pill:hover .badge { transform: translateX(3px); }
+  .pill:active .badge { transform: translateX(1px) scale(0.94); }
+  .pill[download]:hover .badge { transform: translateY(2px); }
+
+  .ink { background: var(--ink); color: var(--paper); }
+  .ink .badge { background: var(--coral); color: var(--ink); }
+  .teal { background: var(--teal); color: var(--ink); }
+  .teal .badge { background: var(--ink); color: var(--paper); }
+
+  @media (prefers-reduced-motion: reduce) { .badge { transition: none; } }
+</style>

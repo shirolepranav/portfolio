@@ -1,0 +1,64 @@
+---
+// kind "contact": the dark closing block with email, résumé and social links, plus the footer.
+import type { ContactSection } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import Icon from "../Icon.astro";
+import PillButton from "../PillButton.astro";
+
+interface Props { section: ContactSection; number: string; lakeHref: string }
+const { section, number, lakeHref } = Astro.props;
+const { ui, profile } = site;
+// Only links that are filled in, in a fixed order.
+const socials = (["linkedin", "github", "x", "instagram"] as const)
+  .filter((k) => profile.links[k])
+  .map((k) => ({ href: profile.links[k], name: ui[k] }));
+---
+<section id={section.id} class="contact">
+  <div class="inner">
+    <span class="label num">{number} / {section.label}</span>
+    <h2 class="display">{section.headline}</h2>
+    <a class="email" href={`mailto:${profile.email}`}>{profile.email}</a>
+    <div class="actions">
+      <PillButton href={profile.resume} icon="down" tone="teal" download>{ui.downloadResume}</PillButton>
+      {socials.length > 0 && (
+        <ul class="socials">
+          {socials.map((s) => <li><a class="label" href={s.href}>{s.name}<Icon name="out" size={14} /></a></li>)}
+        </ul>
+      )}
+    </div>
+  </div>
+  <footer class="label">
+    <span>© {new Date().getFullYear()} {profile.name} · {profile.city}</span>
+    <a href={lakeHref}>{ui.walkFooter}<Icon name="arrow" size={14} /></a>
+  </footer>
+</section>
+
+<style>
+  .contact {
+    flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-between; gap: 72px;
+    padding: clamp(64px, 9cqw, 112px) var(--gutter) 28px; background: var(--night); color: var(--paper);
+  }
+  .inner, footer { width: 100%; max-width: var(--page-max); align-self: center; }
+  .inner { display: flex; flex-direction: column; gap: clamp(24px, 3cqw, 40px); }
+  .num { font-size: 12px; letter-spacing: 0.14em; color: var(--mist); }
+  h2 { max-width: 1040px; font-size: clamp(52px, 8.6cqw, 124px); line-height: 0.9; text-wrap: balance; }
+  .email {
+    align-self: flex-start; display: flex; align-items: center; min-height: 44px; color: var(--paper);
+    font-size: clamp(20px, 2.4cqw, 32px); font-weight: 500; overflow-wrap: anywhere;
+    text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; text-decoration-color: var(--coral);
+  }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
+  .socials { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 0 24px; }
+  .socials a {
+    display: flex; align-items: center; gap: 6px; min-height: 44px; color: var(--paper);
+    text-decoration: none; font-size: 12px; letter-spacing: 0.12em; font-weight: 500;
+  }
+  .socials a:hover, footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  footer {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 24px;
+    padding-top: 16px; border-top: 1px solid var(--line-dark); color: var(--mist);
+  }
+  footer span, footer a { display: flex; align-items: center; min-height: 44px; }
+  footer a { gap: 8px; color: var(--paper); text-decoration: none; }
+  :focus-visible { outline-color: var(--teal); }
+</style>

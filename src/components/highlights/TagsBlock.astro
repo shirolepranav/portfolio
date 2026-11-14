@@ -1,0 +1,30 @@
+---
+// kind "tags": named groups of skill tags; the focus group gets the coral rule.
+import type { TagsSection } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import Block from "./Block.astro";
+import SectionHead from "./SectionHead.astro";
+
+interface Props { section: TagsSection; number: string }
+const { section, number } = Astro.props;
+---
+<Block id={section.id}>
+  <SectionHead number={number} label={section.label} title={section.title} />
+  <div class="groups">
+    {section.groups.map((g) => (
+      <div class:list={["group", { focus: g.focus }]}>
+        <h3 class="label">{g.name}{g.focus && ` · ${site.ui.focus}`}</h3>
+        <ul>{g.tags.map((t) => <li>{t}</li>)}</ul>
+      </div>
+    ))}
+  </div>
+</Block>
+
+<style>
+  .groups { display: grid; gap: 32px 24px; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+  .group { display: flex; flex-direction: column; gap: 14px; padding-top: 16px; border-top: 2px solid var(--ink); }
+  .group.focus { padding-top: 14px; border-top: 4px solid var(--coral); }
+  h3 { margin: 0; font-size: 12px; letter-spacing: 0.14em; font-weight: 500; }
+  ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+  li { padding: 6px 12px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); font-size: 15px; }
+</style>

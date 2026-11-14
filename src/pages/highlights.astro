@@ -1,0 +1,148 @@
+---
+// Highlights: the one-page version for recruiters. Static HTML, no JavaScript.
+// Every word comes from src/content/site.ts.
+import { Picture } from "astro:assets";
+import Base from "../layouts/Base.astro";
+import Logo from "../components/Logo.astro";
+import Icon from "../components/Icon.astro";
+import PillButton from "../components/PillButton.astro";
+import TextBlock from "../components/highlights/TextBlock.astro";
+import TagsBlock from "../components/highlights/TagsBlock.astro";
+import RolesBlock from "../components/highlights/RolesBlock.astro";
+import ProjectsBlock from "../components/highlights/ProjectsBlock.astro";
+import OffClockBlock from "../components/highlights/OffClockBlock.astro";
+import ContactBlock from "../components/highlights/ContactBlock.astro";
+import { site } from "../content/site.ts";
+import { highlightsBlocks, pad2 } from "../content/helpers.ts";
+import vista from "../assets/vista-day-wide.jpg";
+
+const { profile, ui } = site;
+const lakeHref = "/lake";
+const blocks = highlightsBlocks(site.sections);
+const contact = blocks.find((b) => b.kind === "section" && b.section.kind === "contact");
+const contactHref = contact?.kind === "section" ? `#${contact.section.id}` : `mailto:${profile.email}`;
+const cityShort = profile.city.split(",")[0];
+---
+<Base title={`${profile.name} · ${profile.role}`} description={profile.pitch}>
+  <div class="page">
+    <header>
+      <div class="bar">
+        <a class="home" href="/" aria-label={`${profile.name}, ${ui.backToStart.toLowerCase()}`}>
+          <Logo />
+          <span class="label">{profile.name}</span>
+        </a>
+        <nav>
+          <a class="tour label" href={lakeHref}>{ui.tour}<Icon name="out" size={14} /></a>
+          <a class="resume label" href={profile.resume} download>{ui.resume}<Icon name="down" size={14} /></a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-inner">
+          <div class="intro">
+            <span class="label kicker">{profile.role} · {cityShort}</span>
+            <h1 class="display">{profile.name}</h1>
+            <p class="pitch">{profile.pitch}</p>
+            <div class="ctas">
+              <PillButton href={profile.resume} icon="down" download>{ui.downloadResume}</PillButton>
+              <a class="ghost" href={contactHref}>{ui.getInTouch}</a>
+            </div>
+          </div>
+          <dl class="facts">
+            {profile.facts.map((f) => (
+              <div>
+                <dt class="label">{f.label}</dt>
+                <dd>{Array.isArray(f.value) ? f.value.map((line, i) => <>{i > 0 && <br />}{line}</>) : f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
+      <section class="still">
+        <div class="still-inner">
+          <Picture
+            src={vista}
+            alt={ui.heroStillAlt}
+            formats={["avif", "webp"]}
+            widths={[640, 960, 1296, 1920, 2400]}
+            sizes="(min-width: 1440px) 1296px, 90vw"
+            loading="eager"
+            fetchpriority="high"
+          />
+          <a class="chip label" href={lakeHref}>{ui.walkThisLake}<Icon name="arrow" size={16} /></a>
+        </div>
+      </section>
+
+      {blocks.map((b, i) => {
+        const n = pad2(i + 1);
+        if (b.kind === "projects") return <ProjectsBlock sections={b.sections} number={n} />;
+        if (b.kind === "gallery") return <OffClockBlock section={b.section} number={n} lakeHref={lakeHref} />;
+        const s = b.section;
+        if (s.kind === "text") return <TextBlock section={s} number={n} />;
+        if (s.kind === "tags") return <TagsBlock section={s} number={n} />;
+        if (s.kind === "roles") return <RolesBlock section={s} number={n} />;
+        if (s.kind === "contact") return <ContactBlock section={s} number={n} lakeHref={lakeHref} />;
+      })}
+    </main>
+  </div>
+</Base>
+
+<style>
+  /* The page is a size container so cqw units scale with its width, as in the design. */
+  .page { container-type: inline-size; min-height: 100vh; display: flex; flex-direction: column; }
+  main { flex: 1 0 auto; display: flex; flex-direction: column; }
+
+  header { padding: 20px var(--gutter); }
+  .bar {
+    max-width: var(--page-max); margin: 0 auto; display: flex; flex-wrap: wrap;
+    align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .home { display: flex; align-items: center; gap: 8px; min-height: var(--touch); text-decoration: none; }
+  .home .label { letter-spacing: 0.14em; font-weight: 500; }
+  nav { display: flex; align-items: center; gap: 6px; }
+  nav a {
+    display: flex; align-items: center; gap: 6px; min-height: var(--touch); padding: 0 12px;
+    text-decoration: none; letter-spacing: 0.12em; font-weight: 500;
+  }
+  nav .resume { gap: 8px; padding: 0 18px; border-radius: var(--radius-pill); background: var(--ink); color: var(--paper); }
+  nav .tour:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+  .hero { padding: clamp(24px, 4cqw, 48px) var(--gutter) 0; }
+  .hero-inner {
+    max-width: var(--page-max); margin: 0 auto; display: flex; flex-wrap: wrap;
+    align-items: flex-end; gap: clamp(36px, 5cqw, 72px);
+  }
+  .intro { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: clamp(16px, 2cqw, 28px); }
+  .kicker { font-size: clamp(11px, 1cqw, 13px); letter-spacing: 0.16em; font-weight: 500; line-height: 1.5; }
+  h1 { font-size: clamp(64px, 12.4cqw, 176px); line-height: 0.86; }
+  .pitch { margin: 0; max-width: 660px; font-size: clamp(19px, 1.9cqw, 26px); line-height: 1.32; font-weight: 500; text-wrap: pretty; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+  .ghost {
+    display: flex; align-items: center; min-height: 64px; padding: 0 26px; border-radius: var(--radius-pill);
+    border: 1.5px solid var(--ink); text-decoration: none;
+    font-family: var(--font-display); font-weight: 800; font-size: 24px; line-height: 1;
+    text-transform: uppercase; letter-spacing: 0.01em;
+  }
+  .ghost:hover { background: var(--ink); color: var(--paper); }
+
+  .facts { flex: 1 1 300px; margin: 0; display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
+  .facts div { display: flex; flex-direction: column; gap: 4px; padding: 14px 0; border-top: 1px solid var(--line); }
+  dt { letter-spacing: 0.14em; color: var(--slate); }
+  dd { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 500; }
+
+  .still { padding: clamp(32px, 4cqw, 56px) var(--gutter) 0; }
+  .still-inner { position: relative; max-width: var(--page-max); margin: 0 auto; }
+  .still-inner :global(img) {
+    width: 100%; height: clamp(240px, 36cqw, 520px); object-fit: cover; object-position: 50% 80%;
+    border-radius: clamp(18px, 2cqw, 28px);
+  }
+  .chip {
+    position: absolute; left: clamp(10px, 1.4cqw, 20px); bottom: clamp(10px, 1.4cqw, 20px);
+    display: flex; align-items: center; gap: 8px; min-height: var(--touch); padding: 0 14px 0 16px;
+    border-radius: var(--radius-pill); background: rgb(243 239 232 / 0.92); text-decoration: none;
+    letter-spacing: 0.12em; font-weight: 500;
+  }
+</style>
