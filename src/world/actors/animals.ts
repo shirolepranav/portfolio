@@ -196,9 +196,10 @@ export function createElk(terrain: Terrain, material: Material, deg: number, t: 
 
 /** The moose, wading: dips its head to drink every few seconds, and rings spread on the water where it drinks. */
 export function createMoose(terrain: Terrain, material: Material): Actor {
-  const q = quadruped("moose", 1.15, material), [, neck, head, , , , , tail] = q.bones;
+  const q = quadruped("moose", 1.15, material), [body, neck, head, fl, fr, , , tail] = q.bones;
   const { object, setShadow } = wrap(q, false); // no blob: it stands in the water
-  const at = placeAt(terrain, 108, 0.955, 0.3, 0.012);
+  // Wading a little deeper than the script's 0.012 (0.42 m), so its muzzle can reach the water to drink.
+  const at = placeAt(terrain, 108, 0.955, 0.3, 0.02);
   object.position.copy(at.pos);
   object.rotation.y = at.yaw;
   const tip = new Vector3();
@@ -210,8 +211,11 @@ export function createMoose(terrain: Terrain, material: Material): Actor {
       // A 7.5 s cycle: head up and looking about, down over a second, three sips, up again.
       cycle = (cycle + dt) % 7.5;
       const d = smooth(3, 4.1, cycle) * (1 - smooth(6.4, 7.4, cycle));
-      neck.rotation.x = 1.15 * d;
-      head.rotation.x = 0.75 * d + 0.05 * d * Math.sin(time * 9);
+      // Drinking: the body tips forward over planted front legs, the neck reaches down and the muzzle meets the water.
+      body.rotation.x = 0.2 * d;
+      fl.rotation.x = fr.rotation.x = -0.2 * d;
+      neck.rotation.x = 1.13 * d;
+      head.rotation.x = 0.1 * d + 0.05 * d * Math.sin(time * 9);
       neck.rotation.y = (1 - d) * 0.35 * Math.sin(time * 0.3);
       tail.rotation.x = 0.4 * Math.max(0, Math.sin(time * 1.7)) ** 12;
       // Rings: one as the muzzle meets the water, then one each sip.
@@ -220,6 +224,7 @@ export function createMoose(terrain: Terrain, material: Material): Actor {
           head.updateWorldMatrix(true, false);
           tip.copy(q.muzzle); head.localToWorld(tip);
           ripple(tip.x, tip.z);
+          object.userData.muzzleY = tip.y; // for checks: the water's surface is at 0
           sipped = true; nextSip = cycle + 0.8;
         }
       } else if (d < 0.5) sipped = false;

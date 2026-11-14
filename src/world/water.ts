@@ -56,7 +56,7 @@ const shader = {
       for ( int i = 0; i < 2; i++ ) {
         vec2 q = P.xz - uRip[ i ].xy;
         float age = uTime - uRip[ i ].z, r = length( q ), front = 0.003 + age * 0.018;
-        float wave = sin( ( r - front ) * 900.0 ) * sm( 0.012, 0.0, abs( r - front + 0.004 ) ) * uRip[ i ].w * sm( 3.0, 0.4, age ) * step( 0.0, age );
+        float wave = sin( ( r - front ) * 700.0 ) * sm( 0.016, 0.0, abs( r - front + 0.005 ) ) * uRip[ i ].w * sm( 3.2, 0.3, age ) * step( 0.0, age );
         rip += wave;
         n1 += wave * 0.35 * q.x / max( r, 1e-4 ); n2 += wave * 0.35 * q.y / max( r, 1e-4 );
       }
@@ -68,7 +68,7 @@ const shader = {
       vec3 cw = mix( wc, rf * uReflTint, k );
       vec3 nw = normalize( vec3( n1 * 0.22 + n2 * 0.10, 1.0, n2 * 0.22 - n1 * 0.08 ) );
       cw += uSunCol * pow( clamp( dot( reflect( dir, nw ), uSunDir ), 0.0, 1.0 ), uSpecP ) * uSpecS;
-      cw += abs( rip ) * 0.1 * uShallow * uWaterLight;
+      cw += abs( rip ) * 0.35 * uShallow * uWaterLight;   // the rings catch the light
       cw = mix( cw, uFoam, sm( 0.972, 0.997, t ) * 0.38 );
       gl_FragColor = vec4( worldFog( cw, vWorldPos ), 1.0 );
       #include <tonemapping_fragment>
