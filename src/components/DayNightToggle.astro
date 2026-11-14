@@ -1,0 +1,47 @@
+---
+// Day and night toggle. Sets data-mode="day|night" on <html> and remembers it for the browser session.
+// Hidden without JavaScript, since it can do nothing then; the page stays in day.
+import Icon from "./Icon.astro";
+import { site } from "../content/site.ts";
+
+const { ui } = site;
+---
+<div class="toggle" role="group" aria-label={ui.dayOrNight}>
+  <button type="button" data-set-mode="day" aria-label={ui.dayMode} aria-pressed="true"><Icon name="sun" size={20} /></button>
+  <button type="button" data-set-mode="night" aria-label={ui.nightMode} aria-pressed="false"><Icon name="moon" size={20} /></button>
+</div>
+
+<!-- Inline so the saved mode applies before the stills paint. -->
+<script is:inline>
+  (() => {
+    const root = document.documentElement;
+    const set = (mode) => {
+      root.dataset.mode = mode;
+      document.querySelectorAll("[data-set-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setMode === mode)));
+    };
+    let saved = null;
+    try { saved = sessionStorage.getItem("mode"); } catch {}
+    root.dataset.js = "";
+    set(saved === "night" ? "night" : "day");
+    document.addEventListener("click", (e) => {
+      const b = e.target instanceof Element && e.target.closest("[data-set-mode]");
+      if (!b) return;
+      set(b.dataset.setMode);
+      try { sessionStorage.setItem("mode", b.dataset.setMode); } catch {}
+    });
+  })();
+</script>
+
+<style>
+  .toggle { display: none; padding: 2px; border-radius: var(--radius-pill); background: var(--glass-day); }
+  :root[data-js] .toggle { display: flex; }
+  button {
+    width: var(--touch); height: var(--touch); padding: 0; border: 0; border-radius: 50%;
+    display: grid; place-items: center; background: transparent; color: var(--ink); cursor: pointer;
+  }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  :root[data-mode="night"] .toggle { background: var(--glass-night); }
+  :root[data-mode="night"] button { color: var(--paper); }
+  :root[data-mode="night"] button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+</style>

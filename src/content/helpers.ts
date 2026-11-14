@@ -1,4 +1,5 @@
 // Small read-only helpers over the content file, shared by Highlights and (later) the lake.
+import { STOP_IDS } from "./types.ts";
 import type { GallerySection, ProjectsSection, Section } from "./types.ts";
 
 /** Enabled sections, with hidden roles and projects removed. */
@@ -37,3 +38,9 @@ export function highlightsBlocks(sections: readonly Section[]): HighlightsBlock[
 
 /** "07" style two-digit numbers for labels and stop badges. */
 export const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Lake stops with at least one visible section, in walking order. Empty stops drop out, so the rest renumber. */
+export function visibleStops(sections: readonly Section[]) {
+  const visible = visibleSections(sections).filter((s) => s.kind !== "projects" || s.items.length > 0);
+  return STOP_IDS.map((id) => ({ id, sections: visible.filter((s) => s.stop === id) })).filter((s) => s.sections.length > 0);
+}
