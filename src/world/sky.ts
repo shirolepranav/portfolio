@@ -37,11 +37,12 @@ export function createSky() {
         return mix( mix( hash( i ), hash( i + vec2( 1, 0 ) ), f.x ), mix( hash( i + vec2( 0, 1 ) ), hash( i + vec2( 1, 1 ) ), f.x ), f.y );
       }
       void main() {
-        vec3 d = normalize( vDir ), c;
-        if ( uBackdrop > 0.5 ) {
+        vec3 d = normalize( vDir ), c, bg = vec3( 0.0 );
+        if ( uBackdrop > 0.0 ) {
           float yy = 1.0 - gl_FragCoord.y / uRes.y;   // 0 at the top of the screen
-          c = mix( mix( uBgTop, uBgMid, sm( 0.0, 0.55, yy ) ), uBgBot, sm( 0.5, 1.0, yy ) );
-        } else {
+          bg = mix( mix( uBgTop, uBgMid, sm( 0.0, 0.55, yy ) ), uBgBot, sm( 0.5, 1.0, yy ) );
+        }
+        {
           c = skyColor( d );
           float ang = acos( clamp( dot( d, uSunDir ), -1.0, 1.0 ) );
           float m = sm( uSunR * 1.06, uSunR * 0.94, ang );
@@ -54,6 +55,7 @@ export function createSky() {
           }
           c += uDisc * m;
         }
+        c = mix( c, bg, uBackdrop );   // fades between the sky and the backdrop on map flights
         gl_FragColor = vec4( c, 1.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -95,8 +97,8 @@ export function createSky() {
       void main() {
         vec3 d = normalize( position );
         float b = ( 0.25 + 2.6 * mag ) * min( 1.0, 0.25 + abs( d.y ) * 2.5 );
-        float show = uBackdrop > 0.5 ? 1.0 : ( 1.0 - layer ) * sm( -0.02, 0.10, d.y );
-        vCol = tint * b * show * ( uBackdrop > 0.5 ? 2.2 : 1.6 );
+        float show = mix( ( 1.0 - layer ) * sm( -0.02, 0.10, d.y ), 1.0, uBackdrop );
+        vCol = tint * b * show * mix( 1.6, 2.2, uBackdrop );
         gl_PointSize = ( 1.6 + 3.2 * mag ) * uPx;
         gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4( position, 1.0 );
         if ( show == 0.0 ) gl_Position = vec4( 2.0, 2.0, 2.0, 1.0 );   // off screen
@@ -121,9 +123,10 @@ export function createSky() {
 
   return {
     dome, stars,
-    apply(env: Env, backdrop: boolean) {
+    /** backdrop: 0 the open sky, 1 the orbit views' screen-space backdrop, between while flying. */
+    apply(env: Env, backdrop: number) {
       sky.uNight.value = env.night ? 1 : 0;
-      sky.uBackdrop.value = backdrop ? 1 : 0;
+      sky.uBackdrop.value = backdrop;
       sky.uDisc.value.setRGB(...env.disc);
       sky.uSunR.value = env.sunR;
       // Backdrop colours: the scripts' gradient behind the floating island.

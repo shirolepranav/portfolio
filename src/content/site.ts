@@ -39,6 +39,16 @@ export const site = {
     point: "The Point",
     campfire: "The Campfire",
   },
+  // Short names for the desktop rail, where seven names share one bar.
+  stopsShort: {
+    trailhead: "Trailhead",
+    cabin: "Cabin",
+    lookout: "Lookout",
+    camp: "Camp",
+    dock: "Dock",
+    point: "Point",
+    campfire: "Campfire",
+  },
 
   // One entry per section.
   // The order here is the order on the Highlights page.
@@ -213,6 +223,43 @@ export const site = {
     // Lake
     lakeCanvas: "A 3D mountain lake: a loop trail runs around a turquoise lake ringed by snowy peaks",
     lakeStillAlt: "A low-poly hiker walks the sandy shore of a turquoise lake toward a fire lookout tower, under snowy peaks",
+    skipToHighlights: "Skip to Highlights",
+    highlights: "Highlights",
+    switchToDay: "Switch to day",
+    switchToNight: "Switch to night",
+    openMap: "Open the lake map",
+    openMapKey: "Open the lake map, shortcut M",
+    closeMap: "Close the map",
+    railBetween: "Progress around the lake: between stop {a} and stop {b} of {count}", // {a}, {b}, {count} are numbers
+    railAt: "Progress around the lake: at stop {a} of {count}",
+    stopOf: "Stop {a} of {count}",
+    nextStop: "Next stop",
+    scroll: "Scroll",
+    hintPhone: "Swipe up to hike",
+    hintDesktop: "Scroll or hold W to hike",
+    keyHike: "Hike",
+    keyLook: "Look",
+    keyOpen: "Open a stop",
+    keyScroll: "Or just scroll",
+    keyClose: "Close",
+    keyChange: "Previous / next stop",
+    keyEsc: "Esc",
+    keyMap: "Map",
+    closeAndWalk: "Close and keep walking",
+    keepWalking: "Keep walking",
+    backTo: "Back to stop {a}, {name}", // {a} = number, {name} = stop name
+    sectionsAt: "Sections at this stop",
+    map: "Map",
+    mapTitle: "The Lake Loop",
+    mapHint: "Tap a stop to jump there",
+    mapCount: "{count} stops",
+    mapAt: "You are at {a}",
+    mapNear: "Last stop {a}",
+    mapStops: "Stops around the lake",
+    here: "Here",
+    onePage: "One page",
+    email: "Email",
+    noPhotos: "Photos are on the way.",
 
     // Highlights
     tour: "3D tour",

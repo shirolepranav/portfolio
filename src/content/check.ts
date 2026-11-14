@@ -28,7 +28,7 @@ if (p.resume && !inPublic(p.resume)) {
 }
 
 // Stop names
-for (const id of STOP_IDS) required(site.stops[id], `stops.${id}`);
+for (const id of STOP_IDS) { required(site.stops[id], `stops.${id}`); required(site.stopsShort[id], `stopsShort.${id}`); }
 
 // Sections
 const sections: readonly Section[] = site.sections;

@@ -1,0 +1,312 @@
+---
+// The lake's HUD, laid over the canvas (Lake-Walk, Lake-Stop and Lake-Map designs): top bar and rail, the
+// "Next stop" chip and stop pins, bottom hints, the desktop mini-map, the first-visit hint, the map overlay
+// and one panel per visible stop. Built from the content file; src/ui/hud.ts brings it to life.
+import { site } from "../../content/site.ts";
+import { pad2, visibleStops } from "../../content/helpers.ts";
+import Icon from "../Icon.astro";
+import Logo from "../Logo.astro";
+import DayNightToggle from "../DayNightToggle.astro";
+import StopPanel from "./StopPanel.astro";
+
+const { ui, stops: names, stopsShort } = site;
+const vs = visibleStops(site.sections).map((s, i) => ({
+  ...s, num: pad2(i + 1), name: names[s.id], short: stopsShort[s.id], tag: s.sections[0].short ?? s.sections[0].label,
+}));
+const near = (i: number) => ({ id: vs[i].id, num: vs[i].num, name: vs[i].name });
+const n = vs.length;
+// What the script needs to fill in live text. Every word still comes from site.ts.
+const data = {
+  stops: vs.map(({ id, num, name, tag }) => ({ id, num, name, tag })),
+  ui: { railBetween: ui.railBetween, railAt: ui.railAt, stopOf: ui.stopOf, nextStop: ui.nextStop, switchToDay: ui.switchToDay,
+    switchToNight: ui.switchToNight, mapCount: ui.mapCount, mapAt: ui.mapAt, mapNear: ui.mapNear, here: ui.here },
+};
+// The mini-map: stops at their true angles round a ring (Lake-Walk-Desktop). Trailhead (-90 degrees) at the bottom.
+const ring = (deg: number, r = 44) => [66 + r * Math.cos((-deg * Math.PI) / 180), 66 + r * Math.sin((-deg * Math.PI) / 180)];
+const ANGLES = { trailhead: -90, cabin: -30, lookout: 25, camp: 80, dock: 135, point: 190, campfire: 240 } as const;
+---
+<div class="hud" data-hud>
+  <script type="application/json" id="hud-data" set:html={JSON.stringify(data)} />
+
+  <!-- Phone top bar: map button, progress rail with the stops either side, day or night. -->
+  <div class="topbar phone glass" data-walk-ui>
+    <button type="button" class="round solid" data-map-open aria-label={ui.openMap}><Logo /></button>
+    <div class="rail">
+      <div class="names label"><span data-rail-a></span><span data-rail-b></span></div>
+      <div class="track" role="img" data-rail aria-label="">
+        {vs.map((s, i) => <>{i > 0 && <span class="seg" data-seg></span>}<span class="dot" data-dot={s.id}></span></>)}
+      </div>
+    </div>
+    <button type="button" class="round mode" data-mode-cycle><Icon name="sun" size={22} stroke={2} /><Icon name="moon" size={22} stroke={2} /></button>
+  </div>
+
+  <!-- Desktop top: logo, the rail naming every stop, Highlights and day or night. -->
+  <a class="home glass desk" href="/" aria-label={ui.backToStart}><Logo size={24} /><span class="label">{ui.portfolioMark}</span></a>
+  <div class="drail glass desk" role="img" data-drail aria-label="">
+    <div class="cols" style={`--n:${n}`}>
+      <span class="line"></span><span class="fill" data-dfill></span>
+      {vs.map((s) => <div class="col" data-dcol={s.id}><span class="label">{s.num} {s.short}</span><span class="dot"></span></div>)}
+      <span class="marker" data-dmarker></span>
+    </div>
+  </div>
+  <div class="right desk">
+    <a class="pill glass label" href="/highlights">{ui.highlights}<Icon name="out" size={16} /></a>
+    <DayNightToggle />
+  </div>
+
+  <!-- Stop pins over the props in view, and the chip by the next stop. -->
+  {vs.map((s) => <span class="pin" data-pin={s.id} aria-hidden="true">{s.num}</span>)}
+  <a class="chip" href="#" data-chip hidden>
+    <span class="badge" data-chip-num></span>
+    <span class="chip-text"><span class="label chip-tag" data-chip-tag></span><span class="chip-name" data-chip-name></span></span>
+    <Icon name="arrow" size={18} />
+  </a>
+
+  <!-- Bottom: a scroll hint and Highlights on phones; key hints and the mini-map on desktop. -->
+  <div class="bottom phone" data-walk-ui>
+    <span class="pill glass label"><Icon name="scroll" size={18} stroke={2} />{ui.scroll}</span>
+    <a class="pill glass label" href="/highlights">{ui.highlights}<Icon name="out" size={16} /></a>
+  </div>
+  <div class="keys glass label desk" data-keys="walk">
+    <span class="k"><span class="caps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>{ui.keyHike}</span>
+    <span class="k"><svg aria-hidden="true" width="18" height="22" viewBox="0 0 20 26" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="2" width="14" height="22" rx="7" /><path d="M10 6v5" stroke-linecap="round" /></svg>{ui.keyLook}</span>
+    <span class="k"><kbd>E</kbd>{ui.keyOpen}</span>
+    <span class="sep" aria-hidden="true"></span>
+    <span class="k"><Icon name="scroll" size={18} stroke={2} />{ui.keyScroll}</span>
+  </div>
+  <div class="keys glass label desk" data-keys="stop">
+    <span class="k"><kbd class="wide">{ui.keyEsc}</kbd>{ui.keyClose}</span>
+    <span class="k"><span class="caps"><kbd><Icon name="back" size={14} stroke={2.4} /></kbd><kbd><Icon name="arrow" size={14} stroke={2.4} /></kbd></span>{ui.keyChange}</span>
+  </div>
+  <button type="button" class="minimap desk" data-map-open aria-label={ui.openMapKey}>
+    <svg aria-hidden="true" width="132" height="132" viewBox="0 0 132 132" fill="none">
+      <circle class="mm-ring" cx="66" cy="66" r="44" stroke-width="2" />
+      <path class="mm-arc" data-mm-arc d="" stroke-width="2.5" stroke-linecap="round" />
+      {vs.map((s) => { const [x, y] = ring(ANGLES[s.id]); return <circle class="mm-dot" data-mm-dot={s.id} cx={x.toFixed(1)} cy={y.toFixed(1)} r="4" />; })}
+      <circle class="mm-me" data-mm-me cx="66" cy="110" r="6.5" stroke-width="2" />
+      <text x="66" y="63" text-anchor="middle" font-size="11" font-weight="500" letter-spacing="1.4">{ui.keyMap.toUpperCase()}</text>
+      <rect x="56" y="70" width="20" height="20" rx="5" stroke-width="1.5" />
+      <text x="66" y="84" text-anchor="middle" font-size="11" font-weight="500">M</text>
+    </svg>
+  </button>
+
+  <!-- First visit only, for three seconds. -->
+  <p class="hint glass label" data-hint hidden><span class="touch">{ui.hintPhone}</span><span class="mouse">{ui.hintDesktop}</span></p>
+
+  <!-- The map: the island from above, with pins (above) and the stop list. -->
+  <section class="map" data-map role="dialog" aria-modal="true" aria-labelledby="map-title" hidden>
+    <div class="topbar glass">
+      <button type="button" class="round solid" data-map-close aria-label={ui.closeMap}><Icon name="close" size={20} stroke={2} /></button>
+      <div class="map-head">
+        <span class="label">{ui.map}</span>
+        <span class="label sub" data-map-where></span>
+      </div>
+      <button type="button" class="round mode" data-mode-cycle><Icon name="sun" size={22} stroke={2} /><Icon name="moon" size={22} stroke={2} /></button>
+    </div>
+    <div class="map-title">
+      <h2 class="display" id="map-title" tabindex="-1">{ui.mapTitle}</h2>
+      <span class="label">{ui.mapHint}</span>
+    </div>
+    <nav class="list" aria-label={ui.mapStops}>
+      {vs.map((s) => (
+        <a class="item" href={`#${s.id}`} data-go={s.id} data-item={s.id}>
+          <span class="badge">{s.num}</span>
+          <span class="item-text"><span class="item-name">{s.name}</span><span class="label item-tag" data-item-tag>{s.tag}</span></span>
+        </a>
+      ))}
+      <a class="item hl" href="/highlights">
+        <span class="item-text"><span class="item-name">{ui.highlights}</span><span class="label item-tag">{ui.onePage}</span></span>
+        <Icon name="out" size={18} />
+      </a>
+    </nav>
+  </section>
+
+  {vs.map((s, i) => <StopPanel id={s.id} num={s.num} sections={s.sections} prev={near((i + n - 1) % n)} next={near((i + 1) % n)} />)}
+</div>
+
+<style>
+  .hud {
+    /* HUD colours: Paper glass and Ink by day, Night glass and Paper by night. */
+    --h-glass: var(--glass-day); --h-text: var(--ink); --h-sub: var(--slate); --h-solid: var(--ink); --h-solid-text: var(--paper);
+    --h-faint: rgb(15 27 36 / 0.26); --h-dot: rgb(15 27 36 / 0.34); --h-chip: rgb(243 239 232 / 0.94);
+    position: absolute; inset: 0; pointer-events: none; color: var(--h-text);
+  }
+  :root[data-mode="night"] .hud {
+    --h-glass: var(--glass-night); --h-text: var(--paper); --h-sub: var(--mist); --h-solid: var(--paper); --h-solid-text: var(--ink);
+    --h-faint: rgb(243 239 232 / 0.28); --h-dot: rgb(243 239 232 / 0.4); --h-chip: rgb(11 22 32 / 0.86);
+  }
+  .hud > *, .map > * { pointer-events: auto; }
+  .hud > .pin, .hud > .hint { pointer-events: none; }
+  .glass { background: var(--h-glass); }
+  .label { font-size: 11px; letter-spacing: 0.12em; font-weight: 500; }
+  :root:not([data-lake="ready"]) .hud { visibility: hidden; }
+
+  /* Which layout: phone below 900 px or in portrait, desktop otherwise. */
+  .desk { display: none !important; }
+  @media (min-width: 900px) and (orientation: landscape) {
+    .desk { display: flex !important; }
+    .phone { display: none !important; }
+  }
+
+  .round {
+    flex: none; width: var(--touch); height: var(--touch); padding: 0; border: 0; border-radius: 50%;
+    display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
+  }
+  .round.solid { background: var(--h-solid); color: var(--h-solid-text); }
+  .mode :global(svg:last-child), :root[data-mode="night"] .mode :global(svg:first-child) { display: none; }
+  :root[data-mode="night"] .mode :global(svg:last-child) { display: block; }
+  :root:not([data-js]) .mode { visibility: hidden; }
+
+  .pill {
+    display: flex; align-items: center; gap: 8px; height: var(--touch); padding: 0 16px; border-radius: var(--radius-pill);
+    color: inherit; text-decoration: none;
+  }
+
+  /* Phone top bar and rail */
+  .topbar { position: absolute; left: 12px; right: 12px; top: 14px; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 30px; }
+  .rail { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+  .names { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; letter-spacing: 0.1em; }
+  .names span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .names span + span:global(.sub) { color: var(--h-sub); font-weight: 400; }
+  .track { display: flex; align-items: center; height: 14px; }
+  .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--h-dot); }
+  .seg { flex: 1; height: 2px; background: linear-gradient(90deg, var(--h-text) calc(var(--f, 0) * 100%), var(--h-faint) 0); }
+  .dot.passed { background: var(--h-text); }
+  .dot.next { border: 2px solid var(--h-text); background: var(--paper); }
+  :root[data-mode="night"] .dot.next { background: var(--night); }
+  .dot.here { width: 14px; height: 14px; border: 3px solid var(--h-text); background: var(--coral); }
+
+  /* Desktop top */
+  .home {
+    position: absolute; left: 40px; top: 28px; align-items: center; gap: 10px; height: 48px; padding: 0 18px 0 12px;
+    border-radius: var(--radius-pill); color: inherit; text-decoration: none;
+  }
+  .home .label { font-size: 12px; letter-spacing: 0.14em; }
+  .drail { position: absolute; left: 50%; top: 24px; width: min(640px, 100vw - 640px); transform: translateX(-50%); padding: 12px 16px 14px; border-radius: 28px; }
+  .cols { position: relative; flex: 1; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); }
+  .col { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .col .label { font-size: 10px; letter-spacing: 0.08em; color: var(--h-sub); font-weight: 400; white-space: nowrap; }
+  .col.passed .label, .col.next .label { color: var(--h-text); font-weight: 500; }
+  .col.here .label { color: var(--h-text); font-weight: 500; }
+  .col .dot { background: var(--h-dot); }
+  .col.passed .dot { background: var(--h-text); }
+  .col.next .dot { border: 2px solid var(--h-text); background: var(--paper); }
+  :root[data-mode="night"] .col.next .dot { background: var(--night); }
+  .col.here { gap: 5px; }
+  .col.here .dot { width: 14px; height: 14px; margin-bottom: -3px; border: 3px solid var(--h-text); background: var(--coral); }
+  .line, .fill { position: absolute; left: calc(50% / var(--n)); bottom: 3px; height: 2px; }
+  .line { right: calc(50% / var(--n)); background: var(--h-faint); }
+  .fill { width: calc(var(--x, 0) * (100% - 100% / var(--n))); background: var(--h-text); }
+  .marker {
+    position: absolute; bottom: -3px; left: calc(50% / var(--n) + var(--x, 0) * (100% - 100% / var(--n))); width: 14px; height: 14px; margin-left: -7px;
+    border-radius: 50%; border: 2px solid var(--h-text); background: var(--coral);
+  }
+  .right { position: absolute; right: 40px; top: 28px; align-items: center; gap: 10px; }
+  .right .pill { height: 48px; padding: 0 14px 0 18px; font-size: 12px; }
+
+  /* Pins and the chip, placed by the script each frame. */
+  .pin, .chip { position: absolute; left: 0; top: 0; will-change: transform; }
+  .pin {
+    width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; display: grid; place-items: center;
+    background: rgb(243 239 232 / 0.92); color: var(--ink); font: 500 11px/1 var(--font-mono); visibility: hidden;
+  }
+  .pin.show { visibility: visible; }
+  .pin.here { width: 34px; height: 34px; margin: -17px 0 0 -17px; border: 2px solid var(--paper); background: var(--coral); font-size: 12px; }
+  .chip {
+    display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 5px 14px 5px 5px; border-radius: var(--radius-pill);
+    background: var(--h-chip); color: var(--h-text); text-decoration: none; transition: opacity 0.2s ease;
+  }
+  .chip[hidden] { display: flex; visibility: hidden; opacity: 0; }
+  .badge {
+    flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--h-solid); color: var(--h-solid-text); font: 500 13px/1 var(--font-mono);
+  }
+  .chip-text { display: flex; flex-direction: column; gap: 2px; }
+  .chip-tag { font-size: 9px; letter-spacing: 0.14em; font-weight: 400; color: var(--h-sub); }
+  .chip-name { font-family: var(--font-display); font-weight: 800; font-size: 20px; line-height: 1; text-transform: uppercase; white-space: nowrap; }
+  .chip.near .badge { background: var(--coral); color: var(--ink); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(240 138 110 / 0.7); } 50% { box-shadow: 0 0 0 9px rgb(240 138 110 / 0); } }
+
+  /* Bottom bars */
+  .bottom { position: absolute; left: 14px; right: 14px; bottom: max(18px, env(safe-area-inset-bottom)); display: flex; justify-content: space-between; pointer-events: none; }
+  .bottom > * { pointer-events: auto; }
+  .bottom .pill:first-child { padding: 0 16px 0 12px; pointer-events: none; }
+  .bottom a.pill { padding: 0 12px 0 16px; }
+  .keys { position: absolute; left: 40px; bottom: 32px; align-items: center; gap: 18px; height: 56px; padding: 0 20px 0 14px; border-radius: var(--radius-pill); pointer-events: none; }
+  .k { display: flex; align-items: center; gap: 8px; }
+  .caps { display: flex; gap: 3px; }
+  kbd {
+    min-width: 28px; height: 28px; padding: 0 6px; display: grid; place-items: center; border-radius: 7px; border: 1.5px solid currentColor;
+    font: inherit; letter-spacing: 0;
+  }
+  kbd.wide { padding: 0 8px; letter-spacing: 0.04em; }
+  .sep { width: 1px; height: 24px; background: var(--h-faint); }
+  .minimap {
+    position: absolute; right: 40px; bottom: 32px; width: 136px; height: 136px; padding: 0; border: 0; border-radius: 50%;
+    align-items: center; justify-content: center; background: rgb(243 239 232 / 0.9); color: var(--ink); cursor: pointer;
+  }
+  :root[data-mode="night"] .minimap { background: rgb(11 22 32 / 0.84); color: var(--paper); }
+  .minimap text { fill: currentColor; font-family: var(--font-mono); }
+  .minimap rect { stroke: currentColor; }
+  .mm-ring { stroke: var(--h-faint); }
+  .mm-arc { stroke: currentColor; }
+  .mm-dot { fill: var(--h-dot); }
+  .mm-dot.passed { fill: currentColor; }
+  .mm-dot.next { fill: var(--paper); stroke: currentColor; stroke-width: 2; }
+  :root[data-mode="night"] .mm-dot.next { fill: var(--night); }
+  .mm-me { fill: var(--coral); stroke: currentColor; }
+
+  .hint {
+    position: absolute; left: 50%; bottom: 96px; margin: 0; transform: translateX(-50%); padding: 12px 20px; border-radius: var(--radius-pill);
+    white-space: nowrap; transition: opacity 0.4s ease;
+  }
+  .hint[hidden] { display: block; opacity: 0; }
+  .hint .mouse { display: none; }
+  @media (pointer: fine) { .hint .touch { display: none; } .hint .mouse { display: inline; } }
+  @media (min-width: 900px) and (orientation: landscape) { .hint { bottom: 112px; } }
+
+  /* Which parts show in each view (data-view on the HUD root, set by the script). */
+  [data-view="stop"] [data-walk-ui].bottom, [data-view="map"] [data-walk-ui], [data-view="map"] .pin:not(.map-pin),
+  [data-view]:not([data-view="walk"]) .chip, [data-view]:not([data-view="walk"]) [data-keys="walk"], [data-view]:not([data-view="stop"]) [data-keys="stop"],
+  [data-view]:not([data-view="walk"]) .minimap, [data-view="map"] .desk { visibility: hidden; }
+  [data-view="stop"] .pin { visibility: hidden; }
+
+  /* The map overlay: same layout on phones and, centred, on desktop. */
+  .map { position: absolute; inset: 0; pointer-events: none; color: var(--h-text); }
+  .map[hidden] { display: block; visibility: hidden; }
+  .map .topbar { max-width: 560px; margin: 0 auto; }
+  .map-head { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .map-head .sub { font-size: 10px; letter-spacing: 0.1em; font-weight: 400; color: var(--h-sub); }
+  .map-title { position: absolute; left: 18px; right: 18px; top: 90px; display: flex; flex-direction: column; gap: 8px; max-width: 524px; margin: 0 auto; pointer-events: none; }
+  .map-title h2 { font-size: 46px; line-height: 0.92; outline: none; }
+  .map-title .label { color: var(--h-sub); }
+  .list {
+    position: absolute; left: 12px; right: 12px; bottom: max(18px, env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+  }
+  .item {
+    display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 5px 10px 5px 5px; border-radius: var(--radius-pill);
+    background: rgb(243 239 232 / 0.86); border: 1px solid var(--line); color: var(--ink); text-decoration: none;
+  }
+  :root[data-mode="night"] .item { background: rgb(11 22 32 / 0.8); border-color: var(--line-dark); color: var(--paper); }
+  .item .badge { width: 40px; height: 40px; font-size: 12px; background: var(--ink); color: var(--paper); }
+  :root[data-mode="night"] .item .badge { background: var(--paper); color: var(--ink); }
+  .item.here { border: 1.5px solid var(--coral); }
+  .item.here .badge { background: var(--coral); color: var(--ink); }
+  .item-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .item-name { font-family: var(--font-display); font-weight: 800; font-size: 19px; line-height: 1; text-transform: uppercase; }
+  .item-tag { font-size: 9px; letter-spacing: 0.14em; font-weight: 400; color: var(--h-sub); }
+  .item.here .item-tag { color: inherit; }
+  .item.hl { justify-content: space-between; padding: 5px 16px 5px 18px; background: var(--ink); color: var(--paper); border: 0; }
+  :root[data-mode="night"] .item.hl { background: var(--paper); color: var(--ink); }
+  .item.hl .item-tag { color: inherit; opacity: 0.8; }
+  .pin.map-pin { width: 26px; height: 26px; margin: -13px 0 0 -13px; }
+  .pin.map-pin.here { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+  @media (min-width: 900px) and (orientation: landscape) {
+    .map .topbar { top: 28px; }
+    .map-title { top: 112px; align-items: center; text-align: center; }
+    .map-title h2 { font-size: 64px; }
+    .list { bottom: 32px; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 1000px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .chip, .hint { transition: none; } .chip.near .badge { animation: none; } }
+</style>

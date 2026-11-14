@@ -1,13 +1,16 @@
 ---
 // Line icons from the designs. Decorative: the link text says what they do.
-interface Props { name: "arrow" | "out" | "down" | "sun" | "moon"; size?: number }
-const { name, size = 18 } = Astro.props;
+interface Props { name: "arrow" | "back" | "out" | "down" | "sun" | "moon" | "close" | "scroll"; size?: number; stroke?: number }
+const { name, size = 18, stroke = 2.2 } = Astro.props;
 const paths = {
   arrow: "M5 12h14M13 6l6 6-6 6", // go somewhere on this site
+  back: "M19 12H5M11 6l-6 6 6 6", // previous stop
   out: "M7 17L17 7M9 7h8v8",      // leaves the site
+  close: "M6 6l12 12M18 6L6 18",
+  scroll: "M6 5l6 6 6-6M6 13l6 6 6-6", // scroll or swipe to hike
   down: "M12 4v12M6 11l6 6 6-6M5 20h14", // download
   sun: "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
   moon: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z",
 };
 ---
-<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d={paths[name]} /></svg>
+<svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width={stroke} stroke-linecap="round" stroke-linejoin="round"><path d={paths[name]} /></svg>

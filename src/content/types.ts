@@ -93,6 +93,7 @@ export type Section =
 export interface SiteContent {
   profile: Profile;
   stops: Record<StopId, string>; // display name of each stop, e.g. "The Cabin"
+  stopsShort: Record<StopId, string>; // short name for the desktop rail, e.g. "Cabin"
   sections: Section[];           // order here = order on Highlights
   ui: Record<string, string>;    // small interface words (buttons, labels)
 }

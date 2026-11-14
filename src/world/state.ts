@@ -1,3 +1,5 @@
+import type { StopId } from "./config";
+
 // A tiny event store shared by the world and the HUD: read a value, set it, listen for changes.
 export function createState<T extends object>(init: T) {
   const s = { ...init };
@@ -18,5 +20,10 @@ export function createState<T extends object>(init: T) {
   };
 }
 
-/** The world's shared state. progress: 0 to 1 around the loop, 0 at the Trailhead. */
-export type WorldState = ReturnType<typeof createState<{ progress: number }>>;
+/**
+ * The world's shared state, which the HUD listens to:
+ * progress: 0 to 1 around the loop, 0 at the Trailhead. near: the visible stop within 3%, if any.
+ * stop: the open stop. view: what the camera shows.
+ */
+export interface WorldEvents { progress: number; near: StopId | null; stop: StopId | null; view: "walk" | "stop" | "map" }
+export type WorldState = ReturnType<typeof createState<WorldEvents>>;

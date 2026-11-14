@@ -1,0 +1,165 @@
+---
+// One section inside a lake panel, laid out by its kind. Compact versions of the Highlights blocks:
+// the projects rows follow Lake-Stop exactly; the other kinds copy that row pattern (not drawn in the designs).
+import type { Section } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import { pad2 } from "../../content/helpers.ts";
+import Icon from "../Icon.astro";
+
+interface Props { section: Section }
+const { section: s } = Astro.props;
+const { ui, profile } = site;
+const socials = (["linkedin", "github", "x", "instagram"] as const)
+  .filter((k) => profile.links[k])
+  .map((k) => ({ href: profile.links[k], name: ui[k] }));
+---
+{s.intro && <p class="intro">{s.intro}</p>}
+
+{s.kind === "text" && (
+  <div class="text">
+    {s.body.map((p) => <p>{p}</p>)}
+    {s.path && s.path.length > 0 && (
+      <>
+        <h3 class="label sub">{ui.pathSoFar}</h3>
+        <ol class="rows">
+          {s.path.map((step, i) => (
+            <li class:list={["row", step.marker]}>
+              <span class="label num">{pad2(i + 1)}</span>
+              <span class="grow">
+                <span class="name">{step.label}{step.marker && <span class="label tag">{ui[step.marker]}</span>}</span>
+                <span class="line">{step.note}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </>
+    )}
+  </div>
+)}
+
+{s.kind === "roles" && (
+  <ul class="rows">
+    {s.items.map((r) => (
+      <li class="row role">
+        <span class="label dates">{r.start} – {r.end}</span>
+        <span class="name">{r.title}</span>
+        <span class="line">{[r.employer, r.city].filter(Boolean).join(", ")}</span>
+        <ul class="results">{r.results.map((x) => <li>{x}</li>)}</ul>
+      </li>
+    ))}
+  </ul>
+)}
+
+{s.kind === "tags" && (
+  <div class="groups">
+    {s.groups.map((g) => (
+      <div class:list={["group", { focus: g.focus }]}>
+        <h3 class="label sub">{g.name}{g.focus && ` · ${ui.focus}`}</h3>
+        <ul class="tags">{g.tags.map((t) => <li>{t}</li>)}</ul>
+      </div>
+    ))}
+  </div>
+)}
+
+{s.kind === "projects" && (
+  <ul class="rows">
+    {s.items.map((p) => {
+      const Tag = p.url ? "a" : "div";
+      return (
+        <li>
+          <Tag class="row project" href={p.url || undefined}>
+            <span class:list={["dot", p.status.replace(" ", "-")]} aria-hidden="true"></span>
+            <span class="grow">
+              <span class="name">{p.name}<span class:list={["label", "status", p.status.replace(" ", "-")]}>{p.status}</span></span>
+              <span class="line">{p.line}</span>
+            </span>
+            {p.url && <Icon name="out" size={16} />}
+          </Tag>
+        </li>
+      );
+    })}
+  </ul>
+)}
+
+{s.kind === "gallery" && (
+  <div class="gallery">
+    {s.photos.length > 0
+      ? <ul class="photos">{s.photos.map((ph) => <li><img src={ph.src} alt={ph.alt} loading="lazy" decoding="async" /></li>)}</ul>
+      : <p class="line">{ui.noPhotos}</p>}
+    <ul class="rows">
+      {profile.links.instagram && <li><a class="row link" href={profile.links.instagram}><span class="grow"><span class="name">{ui.photosOnInstagram}</span></span><Icon name="out" size={16} /></a></li>}
+    </ul>
+  </div>
+)}
+
+{s.kind === "contact" && (
+  <div class="contact">
+    <p class="display headline">{s.headline}</p>
+    <ul class="rows">
+      <li><a class="row link" href={`mailto:${profile.email}`}><span class="grow"><span class="label sub">{ui.email}</span><span class="name">{profile.email}</span></span><Icon name="arrow" size={16} /></a></li>
+      <li><a class="row link" href={profile.resume} download><span class="grow"><span class="name">{ui.downloadResume}</span></span><Icon name="down" size={16} /></a></li>
+      {socials.map((x) => <li><a class="row link" href={x.href}><span class="grow"><span class="name">{x.name}</span></span><Icon name="out" size={16} /></a></li>)}
+    </ul>
+  </div>
+)}
+
+<style>
+  .intro { margin: 10px 0 0; font-size: 15px; line-height: 1.4; color: var(--p-body); }
+  .text > p { margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--p-body); }
+  .sub { display: block; margin: 20px 0 8px; font-size: 10px; letter-spacing: 0.14em; font-weight: 500; color: var(--p-sub); }
+
+  .rows { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--p-line); }
+  .text .rows, .gallery .rows, .contact .rows { margin-top: 0; }
+  .row {
+    display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0;
+    border-top: 1px solid var(--p-line); color: inherit; text-decoration: none;
+  }
+  a.row:hover .name { text-decoration: underline; text-underline-offset: 4px; }
+  .row :global(svg) { flex: none; color: var(--p-sub); }
+  .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .name { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; font-size: 16px; line-height: 1.3; font-weight: 600; overflow-wrap: anywhere; }
+  .line { font-size: 13px; line-height: 1.4; color: var(--p-sub); }
+  .num { flex: none; width: 22px; font-size: 10px; color: var(--p-sub); }
+  .tag { font-size: 9px; letter-spacing: 0.12em; font-weight: 500; color: var(--p-sub); }
+  .next .tag, .next .num { color: var(--p-accent); }
+
+  /* Roles: dates, title, employer, then the results. */
+  .role { flex-direction: column; align-items: stretch; gap: 3px; padding: 12px 0; }
+  .dates { font-size: 10px; letter-spacing: 0.12em; color: var(--p-sub); }
+  .results { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.45; color: var(--p-body); }
+
+  /* Tags: a rule over each group, coral over the focus group. */
+  .group { border-top: 1px solid var(--p-line); }
+  .group.focus { border-top: 3px solid var(--coral); }
+  .group .sub { margin-top: 10px; }
+  .tags { margin: 0 0 12px; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tags li { padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid var(--p-line-strong); font-size: 14px; }
+
+  /* Projects, as drawn: a status dot, name with status, one line. */
+  .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--coral); }
+  .dot.beta { background: var(--amber); }
+  .dot.in-progress { background: transparent; border: 2px solid var(--p-sub); }
+  .status { font-size: 9px; letter-spacing: 0.12em; font-weight: 500; color: var(--p-sub); }
+  .status.live { color: var(--p-live); }
+  .status.beta { color: var(--p-beta); }
+
+  .photos { margin: 12px 0; padding: 0; list-style: none; display: grid; gap: 6px; grid-template-columns: repeat(3, 1fr); }
+  .photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+  .gallery > .line { margin: 12px 0; }
+
+  .headline { margin: 14px 0; font-size: 34px; line-height: 0.92; text-wrap: balance; }
+
+  @media (min-width: 900px) and (orientation: landscape) {
+    .intro { margin-top: 18px; max-width: 340px; font-size: 18px; line-height: 1.42; }
+    .text > p { font-size: 16px; }
+    .rows { margin-top: 26px; }
+    .row { gap: 16px; min-height: 64px; }
+    .project { min-height: 86px; }
+    .grow { gap: 4px; }
+    .name { gap: 0 10px; font-size: 20px; }
+    .line { font-size: 15px; }
+    .dot { width: 12px; height: 12px; }
+    .status { font-size: 10px; }
+    .headline { font-size: 52px; }
+  }
+</style>
