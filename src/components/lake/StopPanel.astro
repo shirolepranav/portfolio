@@ -1,0 +1,126 @@
+---
+// The panel at a stop: a bottom sheet on phones, a 464 px side panel on desktop (Lake-Stop designs).
+// Label, stop name, then each section (a two-tab switch when the stop has two), then "Keep walking".
+// Hidden until the HUD opens it; Night glass by night, Paper by day.
+import type { Section } from "../../content/types.ts";
+import { site } from "../../content/site.ts";
+import Icon from "../Icon.astro";
+import PanelBody from "./PanelBody.astro";
+
+interface Near { id: string; num: string; name: string }
+interface Props { id: string; num: string; sections: Section[]; prev: Near; next: Near }
+const { id, num, sections, prev, next } = Astro.props;
+const { ui, stops } = site;
+const name = stops[id as keyof typeof stops];
+const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? "");
+---
+<section class="panel" id={`panel-${id}`} data-panel={id} role="dialog" aria-modal="true" aria-labelledby={`title-${id}`} hidden>
+  <div class="grab" data-grab>
+    <span class="handle" aria-hidden="true"></span>
+    <div class="head">
+      <span class="label kicker"><span class="num">{num} · </span><span data-kicker>{sections[0].label}</span></span>
+      <button type="button" class="close" data-close aria-label={ui.closeAndWalk}><Icon name="close" size={20} stroke={2} /></button>
+    </div>
+  </div>
+  <div class="scroll">
+    <h2 class="display" id={`title-${id}`} tabindex="-1">{name}</h2>
+    {sections.length > 1 && (
+      <div class="tabs" role="tablist" aria-label={ui.sectionsAt}>
+        {sections.map((s, i) => (
+          <button type="button" role="tab" id={`tab-${id}-${s.id}`} aria-controls={`tp-${id}-${s.id}`} aria-selected={i === 0 ? "true" : "false"} tabindex={i === 0 ? 0 : -1} data-label={s.label}>{s.label}</button>
+        ))}
+      </div>
+    )}
+    {sections.map((s, i) => (
+      <div id={`tp-${id}-${s.id}`} role={sections.length > 1 ? "tabpanel" : undefined} aria-labelledby={sections.length > 1 ? `tab-${id}-${s.id}` : undefined} hidden={i > 0}>
+        <PanelBody section={s} />
+      </div>
+    ))}
+  </div>
+  <div class="foot">
+    <a class="back" href={`#${prev.id}`} data-go={prev.id} aria-label={fill(ui.backTo, { a: String(+prev.num), name: prev.name })}><Icon name="back" size={20} /></a>
+    <a class="keep" href={`#${next.id}`} data-go={next.id}>
+      <span class="keep-text"><span class="keep-label">{ui.keepWalking}</span><span class="label keep-next">{next.num} {next.name}</span></span>
+      <Icon name="arrow" size={20} />
+    </a>
+  </div>
+</section>
+
+<style>
+  .panel {
+    /* Panel colours: Paper by day, Night by night. Coral, teal and amber only as text on dark. */
+    --p-bg: rgb(243 239 232 / 0.95); --p-text: var(--ink); --p-body: var(--ink); --p-sub: var(--slate);
+    --p-line: var(--line); --p-line-strong: var(--line-strong); --p-live: var(--slate); --p-beta: var(--slate); --p-accent: var(--ink);
+    --p-btn: var(--ink); --p-btn-text: var(--paper);
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; height: 53%; display: flex; flex-direction: column;
+    pointer-events: auto; /* the HUD layer itself lets clicks through to the canvas */
+    padding: 8px 18px max(18px, env(safe-area-inset-bottom)); border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    background: var(--p-bg); color: var(--p-text); border-top: 1px solid var(--p-line);
+    transform: translateY(0); transition: transform 0.45s cubic-bezier(0.2, 1.3, 0.4, 1), opacity 0.2s ease;
+  }
+  :root[data-mode="night"] .panel {
+    --p-bg: rgb(11 22 32 / 0.95); --p-text: var(--paper); --p-body: var(--fog); --p-sub: var(--mist);
+    --p-line: rgb(243 239 232 / 0.16); --p-line-strong: rgb(243 239 232 / 0.3); --p-live: var(--teal); --p-beta: var(--amber); --p-accent: var(--coral);
+    --p-btn: var(--teal); --p-btn-text: var(--ink);
+  }
+  .panel[hidden] { display: flex; visibility: hidden; transform: translateY(105%); transition: transform 0.25s ease, visibility 0s 0.25s; }
+  .panel :focus-visible { outline-color: var(--coral); }
+
+  .grab { touch-action: none; }
+  .handle { display: block; margin: 0 auto; width: 40px; height: 4px; border-radius: 2px; background: var(--p-line-strong); }
+  .head { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .kicker { font-size: 11px; letter-spacing: 0.14em; color: var(--p-sub); }
+  .num { display: none; }
+  .close {
+    width: var(--touch); height: var(--touch); margin-right: -10px; padding: 0; border: 0; border-radius: 50%;
+    display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
+  }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -18px; padding: 0 18px 16px; }
+  h2 { font-size: 46px; line-height: 0.92; outline: none; }
+
+  .tabs { display: flex; gap: 6px; margin-top: 12px; padding: 3px; border-radius: var(--radius-pill); border: 1px solid var(--p-line); width: fit-content; }
+  [role="tab"] {
+    min-height: var(--touch); padding: 0 16px; border: 0; border-radius: var(--radius-pill); background: transparent; color: inherit; cursor: pointer;
+    font: 500 11px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  [role="tab"][aria-selected="true"] { background: var(--p-text); color: var(--p-bg); }
+  :root[data-mode="night"] [role="tab"][aria-selected="true"] { color: var(--night); }
+
+  .foot { display: flex; align-items: center; gap: 12px; padding-top: 12px; }
+  .back {
+    display: none; flex: none; width: 64px; height: 64px; border-radius: 50%; border: 1.5px solid var(--p-line-strong);
+    place-items: center; color: inherit;
+  }
+  .keep {
+    flex: 1; display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 18px 0 22px;
+    border-radius: var(--radius-pill); background: var(--p-btn); color: var(--p-btn-text); text-decoration: none;
+  }
+  .keep-text { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .keep-label { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; white-space: nowrap; }
+  .keep-next { font-size: 10px; letter-spacing: 0.1em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .keep :global(svg) { flex: none; transition: transform 0.18s ease; }
+  .keep:hover :global(svg) { transform: translateX(3px); }
+
+  @media (min-width: 900px) and (orientation: landscape) {
+    .panel {
+      left: auto; right: 40px; top: 100px; bottom: 32px; width: 464px; height: auto;
+      padding: 22px 30px 28px; border-radius: 30px; border: 1px solid var(--p-line);
+    }
+    .panel { --p-bg: rgb(243 239 232 / 0.93); }
+    :root[data-mode="night"] .panel { --p-bg: rgb(11 22 32 / 0.93); }
+    .panel[hidden] { transform: translateX(calc(100% + 48px)); }
+    .handle { display: none; }
+    .head { margin-top: 0; }
+    .kicker { font-size: 12px; }
+    .num { display: inline; }
+    .close { margin-right: -12px; }
+    .scroll { margin: 0 -30px; padding: 0 30px 16px; }
+    h2 { margin-top: 14px; font-size: 92px; line-height: 0.88; }
+    .back { display: grid; }
+    .keep { min-height: 64px; padding: 0 22px 0 26px; }
+    .keep-text { gap: 12px; }
+    .keep-label { font-size: 26px; }
+    .keep-next { font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .panel, .panel[hidden], .keep :global(svg) { transition: none; } }
+</style>

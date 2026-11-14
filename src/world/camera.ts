@@ -22,7 +22,7 @@ export interface Shot {
 }
 
 /** Points along the view axis that must stay free of trees (corridor() in shots.py). */
-function corridor(eye: V3, vd: V3, right: V3, length = 0.5, half = 0.09) {
+export function corridor(eye: V3, vd: V3, right: V3, length = 0.5, half = 0.09) {
   const pts: V3[] = [];
   for (let d = 0; d <= length + 0.01; d += 0.08)
     for (const s of [-1, 0, 1]) pts.push(add(add(eye, mul(vd, d)), mul(right, s * half * (0.5 + d))));
@@ -30,7 +30,7 @@ function corridor(eye: V3, vd: V3, right: V3, length = 0.5, half = 0.09) {
 }
 
 const flat = (v: V3): V3 => [v[0], 0, v[2]];
-const v3 = (p: V3) => new Vector3(...toWorld(p));
+export const v3 = (p: V3) => new Vector3(...toWorld(p));
 
 export function referenceShot(name: ShotName, terrain: Terrain): Shot {
   const portrait = name.endsWith("p");
@@ -72,6 +72,17 @@ export function referenceShot(name: ShotName, terrain: Terrain): Shot {
     sun: { day: [101, 24], night: [118, 34] }, orbit: false, clear: corridor(eye, vd, right, 0.65, 0.12), size: [2400, 1200],
   };
 }
+
+/**
+ * The map: the diorama orbit, turned `spin` degrees round the island. On desktop the island sits centred and high,
+ * above the stop list; on phones it is the dioramap frame.
+ */
+export function mapShot(terrain: Terrain, portrait: boolean, spin = 0): Shot {
+  const s = referenceShot(portrait ? "dioramap" : "diorama", terrain), a = spin * D2R;
+  const turn = (v: Vector3) => v.applyAxisAngle(UP, a);
+  return { ...s, eye: turn(s.eye.clone()), target: turn(s.target.clone()), ...(portrait ? {} : { fov: 50, shift: [0, -0.02] as [number, number] }) };
+}
+const UP = new Vector3(0, 1, 0);
 
 /**
  * The walking camera for a hiker at `deg`: behind and above, looking between the trail ahead and the far shore

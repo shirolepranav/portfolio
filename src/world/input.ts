@@ -1,5 +1,6 @@
 // Wheel, touch, mouse drag and keys, reduced to two numbers: walking velocity (progress per second)
 // and a look offset (degrees). Input only adds velocity; it never sets progress.
+// It also spins the map, and turns the one-shot keys (E, Enter, Esc, M, N, left and right) into commands.
 
 export const VMAX = 1 / 45;   // top speed: one lap in about 45 s
 const WHEEL = (0.35 * VMAX) / 100;  // one mouse-wheel notch (100 px) gives about a third of top speed
@@ -11,13 +12,19 @@ const LOOK_DRAG = 0.15;       // degrees per pixel dragged
 const LOOK_KEY = 70;          // degrees per second with A or D held
 const LOOK_HOLD = 2;          // seconds after release before the view eases back
 
+const SPIN_DRAG = 0.3;        // map: degrees of island turn per pixel dragged
+
+/** One-shot keys. The HUD decides what each means right now. */
+export type Command = "open" | "close" | "map" | "mode" | "prev" | "next";
+const COMMANDS: Record<string, Command> = { KeyE: "open", Enter: "open", NumpadEnter: "open", Escape: "close", KeyM: "map", KeyN: "mode" };
+
 const WALK_KEYS: Record<string, number> = { KeyW: 1, ArrowUp: 1, KeyS: -1, ArrowDown: -1 };
 const LOOK_KEYS: Record<string, number> = { KeyA: -1, ArrowLeft: -1, KeyD: 1, ArrowRight: 1 };
 
 const clamp = (x: number, m: number) => Math.max(-m, Math.min(m, x));
 
-export function createInput(el: HTMLElement) {
-  let v = 0, look = 0, idle = LOOK_HOLD, enabled = true;
+export function createInput(el: HTMLElement, onCommand: (c: Command) => void = () => {}) {
+  let v = 0, look = 0, idle = LOOK_HOLD, enabled = true, spinning = false, spin = 0, spinV = 0;
   const held = new Set<string>();
   let drag: { id: number; x: number; y: number; sx: number; sy: number; mouse: boolean; axis: "walk" | "look" | null } | null = null;
   const sum = (map: Record<string, number>) => [...held].reduce((n, k) => n + (map[k] ?? 0), 0);
@@ -29,13 +36,21 @@ export function createInput(el: HTMLElement) {
     v += px * WHEEL;
   };
   const onKey = (e: KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || !(e.code in WALK_KEYS || e.code in LOOK_KEYS)) return;
-    if ((e.target as HTMLElement).closest?.("input, textarea, select, [contenteditable]")) return;
-    e.preventDefault();
-    if (e.type === "keydown" && enabled) held.add(e.code); else held.delete(e.code);
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement;
+    if (t.closest?.("input, textarea, select, [contenteditable]")) return;
+    if (e.type === "keydown" && !e.repeat) {
+      // Enter belongs to a focused button or link; arrows belong to a focused tab.
+      const cmd = e.code === "Enter" || e.code === "NumpadEnter" ? (t.closest?.("a, button") ? undefined : "open")
+        : !enabled && (e.code === "ArrowLeft" || e.code === "ArrowRight") && !t.closest?.("[role=tab]") ? (e.code === "ArrowLeft" ? "prev" : "next")
+        : COMMANDS[e.code];
+      if (cmd) { e.preventDefault(); onCommand(cmd); return; }
+    }
+    if (!(e.code in WALK_KEYS || e.code in LOOK_KEYS)) return;
+    if (e.type === "keydown" && enabled) { e.preventDefault(); held.add(e.code); } else held.delete(e.code);
   };
   const onDown = (e: PointerEvent) => {
-    if (!enabled || drag || e.button !== 0) return;
+    if (!(enabled || spinning) || drag || e.button !== 0) return;
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, mouse: e.pointerType === "mouse", axis: null };
     el.setPointerCapture(e.pointerId);
   };
@@ -47,10 +62,11 @@ export function createInput(el: HTMLElement) {
       // Lock to one axis after a few pixels. A mouse drag always looks; a finger swipes up or down to walk.
       const tx = e.clientX - drag.sx, ty = e.clientY - drag.sy;
       if (Math.hypot(tx, ty) < 8) return;
-      drag.axis = drag.mouse || Math.abs(tx) > Math.abs(ty) ? "look" : "walk";
+      drag.axis = spinning || drag.mouse || Math.abs(tx) > Math.abs(ty) ? "look" : "walk";
     }
+    if (spinning) { spin += dx * SPIN_DRAG; spinV = (dx * SPIN_DRAG) / (1 / 60); return; } // the island follows the finger
     if (drag.axis === "walk") v -= (dy / innerHeight) * SWIPE; // swipe up walks forward
-    else { look = clamp(look - dx * LOOK_DRAG, LOOK_MAX); idle = 0; } // the scene follows the finger
+    else { look = clamp(look + dx * LOOK_DRAG, LOOK_MAX); idle = 0; } // the view turns with the drag
   };
   const onUp = (e: PointerEvent) => { if (drag?.id === e.pointerId) drag = null; };
   const reset = () => { held.clear(); drag = null; };
@@ -67,6 +83,13 @@ export function createInput(el: HTMLElement) {
   return {
     get enabled() { return enabled; },
     set enabled(on: boolean) { enabled = on; if (!on) { reset(); v = 0; } },
+    /** Map mode: a drag spins the island instead of walking or looking. */
+    set spinning(on: boolean) { spinning = on; drag = null; spinV = 0; },
+    /** Degrees the map island has been turned, with a little momentum after release. */
+    stepSpin(dt: number) {
+      if (!drag) { spin += spinV * dt; spinV *= Math.exp(-dt / 0.35); }
+      return spin;
+    },
     /** Stops walking at once (debug jumps). */
     stop() { v = 0; },
     /**

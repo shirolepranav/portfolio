@@ -1,33 +1,35 @@
 ---
-// The lake: the 3D world full screen, walked with wheel, touch and keys. The HUD comes in Phase 5.
+// The lake: the 3D world full screen, walked with wheel, touch and keys, with the HUD over it.
 // While the world loads, the walking still shows with a slim progress line (PLAN.md, Loading and fallbacks).
 import Base from "../layouts/Base.astro";
 import Still from "../components/Still.astro";
-import DayNightToggle from "../components/DayNightToggle.astro";
+import Hud from "../components/lake/Hud.astro";
 import { site } from "../content/site.ts";
 import { visibleStops } from "../content/helpers.ts";
 import walkPhone from "../assets/walk-day-phone.jpg";
 import walkDesktop from "../assets/walk-day-desktop.jpg";
 
 const { profile, ui } = site;
-// One tent per app and one canoe per product: the enabled items of the projects sections at those stops.
+// The world gets ids and counts only: the visible stops, one tent per app and one canoe per product.
 const stops = visibleStops(site.sections);
 const items = (id: string) =>
   stops.find((s) => s.id === id)?.sections.reduce((n, s) => n + (s.kind === "projects" ? s.items.length : 0), 0) ?? 0;
-const world = { tents: items("camp"), canoes: items("dock") };
+const world = { tents: items("camp"), canoes: items("dock"), stops: stops.map((s) => s.id) };
 ---
 <Base title={`${profile.name} · ${ui.landingWalk}`} description={profile.tagline}>
   <main class="lake">
     <div class="still"><Still phone={walkPhone} desktop={walkDesktop} alt={ui.lakeStillAlt} eager /></div>
     <canvas id="world" aria-label={ui.lakeCanvas} data-world={JSON.stringify(world)}></canvas>
+    <a class="skip" href="/highlights">{ui.skipToHighlights}</a>
     <div class="vignette" aria-hidden="true"></div>
     <div class="progress" aria-hidden="true"></div>
-    <header><DayNightToggle /></header>
+    <Hud />
   </main>
 </Base>
 
 <script>
-  import { createWorld } from "../world/index.ts";
+  import { createWorld, type StopId } from "../world/index.ts";
+  import { startHud } from "../ui/hud.ts";
 
   const canvas = document.querySelector<HTMLCanvasElement>("#world")!;
   const root = document.documentElement;
@@ -35,12 +37,23 @@ const world = { tents: items("camp"), canoes: items("dock") };
   const modeNow = () => (root.dataset.mode === "night" ? "night" : "day");
   root.dataset.lake = "building";
   // The visitor's place on the loop is remembered for the browser session (storage can be blocked).
+  // Day or night is remembered by the toggle itself.
   const KEY = "lake:progress";
   const saved = (() => { try { return sessionStorage.getItem(KEY); } catch { return null; } })();
+  const opts = JSON.parse(canvas.dataset.world!) as { tents: number; canoes: number; stops: StopId[] };
+  // A /lake#<stop> address starts at that stop with its panel open.
+  const hash = location.hash.slice(1) as StopId;
 
   // Let the progress line paint before the build blocks the main thread.
   requestAnimationFrame(() => setTimeout(() => {
-    const world = createWorld(canvas, { ...JSON.parse(canvas.dataset.world!), mode: modeNow(), progress: saved && isFinite(+saved) ? +saved : undefined });
+    let hud: ReturnType<typeof startHud> | undefined;
+    const world = createWorld(canvas, {
+      ...opts, mode: modeNow(), progress: saved && isFinite(+saved) ? +saved : undefined,
+      open: opts.stops.includes(hash) ? hash : null,
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      onCommand: (c) => hud?.command(c),
+    });
+    hud = startHud(world);
     addEventListener("pagehide", () => { try { sessionStorage.setItem(KEY, String(world.state.get("progress"))); } catch {} });
     // Follow the day and night toggle; the world has no toggle of its own.
     new MutationObserver(() => world.setMode(modeNow())).observe(root, { attributes: true, attributeFilter: ["data-mode"] });
@@ -61,6 +74,14 @@ const world = { tents: items("camp"), canoes: items("dock") };
   :root[data-lake="ready"] canvas { opacity: 1; }
   @media (prefers-reduced-motion: reduce) { canvas, .progress { transition: none; } }
 
+  /* Visible only when focused: the first stop for keyboard users who want the plain page. */
+  .skip {
+    position: absolute; left: 12px; top: 12px; z-index: 10; padding: 12px 18px; border-radius: var(--radius-pill);
+    background: var(--ink); color: var(--paper); font: 500 12px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
+    text-decoration: none; transform: translateY(-200%);
+  }
+  .skip:focus { transform: none; }
+
   /* The reference frames' vignette (finish() in shots.py), as a cheap overlay. */
   .vignette {
     position: absolute; inset: 0; pointer-events: none;
@@ -73,7 +94,4 @@ const world = { tents: items("camp"), canoes: items("dock") };
   }
   :root[data-lake="building"] .progress { width: 55%; }
   :root[data-lake="ready"] .progress { width: 100%; opacity: 0; }
-
-  header { position: absolute; top: 18px; right: 16px; }
-  @media (min-width: 900px) and (orientation: landscape) { header { top: 28px; right: 40px; } }
 </style>
