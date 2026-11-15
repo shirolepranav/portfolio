@@ -141,6 +141,7 @@ export function startDebug(world: World, params: URLSearchParams) {
   function clearance() {
     const { terrain, trees, blocks } = world, S = 35, step = 0.25, dt = step / 360 / VMAX;
     let ground = Infinity, tree = Infinity, sight = 0, props = 0, jump = 0, worst = "";
+    let cleared = 0, clearedMax = 0, frames = 0; // trees cleared or shrunk for the walking camera, per frame
     // Trees at the eye (gap in metres) and in the line from the eye to the hiker's chest (hits).
     const treeCheck = (eye: V3, chest: V3 | null) => {
       trees.spots.forEach((s, j) => {
@@ -230,6 +231,8 @@ export function startDebug(world: World, params: URLSearchParams) {
             slide = stepSlide(terrain, deg, dir, portrait, look, blocks, slide, dt);
             const shot = walkShot(terrain, deg, portrait, look, slide);
             trees.clearAround(shot.clear);
+            const gone = trees.scale.reduce((n, k) => n + (k < 1 ? 1 : 0), 0);
+            cleared += gone; clearedMax = Math.max(clearedMax, gone); frames++;
             const e = shot.eye, eye: V3 = [e.x / S, e.y / S, -e.z / S], hp = terrain.at(deg, T_TRAIL), chest = lift(hp, 0.035);
             const g = (eye[1] - terrain.ground(eye[0], eye[2])) * S;
             if (g < ground) ground = g;
@@ -237,9 +240,9 @@ export function startDebug(world: World, params: URLSearchParams) {
             if (prev) jump = Math.max(jump, Math.hypot(eye[0] - prev[0], eye[1] - prev[1], eye[2] - prev[2]) * S);
             prev = eye;
             treeCheck(eye, chest);
-            animalCheck(eye, chest, shot.clear);
+            animalCheck(eye, chest, shot.view!); // animals are checked along the view corridor ahead, not the clearing
             label = `${portrait ? "portrait" : "landscape"} look ${look} dir ${dir} deg ${deg.toFixed(1)}`;
-            meshCheck(eye, chest, shot.clear, hp, dt);
+            meshCheck(eye, chest, shot.view!, hp, dt);
           }
         }
     const walkWild = { ...wild, sightMesh, corridorMesh, worstMesh: +worstMesh.toFixed(2) };
@@ -260,7 +263,7 @@ export function startDebug(world: World, params: URLSearchParams) {
         if (g < ground) { ground = g; worst = `${what} at ${(i / 40).toFixed(2)}`; }
         const hp = hiker(k), before = sight, wildBefore = wild.sight + wild.corridor;
         treeCheck(eye, hp && lift(hp, 0.035));
-        animalCheck(eye, hp && lift(hp, 0.035), i === 40 ? b.clear : corridor(eye, vd, cross([0, 1, 0], vd), 0.3));
+        animalCheck(eye, hp && lift(hp, 0.035), i === 40 ? b.view ?? (b.clear as V3[]) : corridor(eye, vd, cross([0, 1, 0], vd), 0.3));
         if (wild.sight + wild.corridor > wildBefore) console.warn("animal in view:", what, (i / 40).toFixed(2));
         if (sight > before) console.warn("tree in view:", what, (i / 40).toFixed(2));
         if (hp && blocked(eye, hp, blocks)) { props++; console.warn("prop in view:", what, (i / 40).toFixed(2)); }
@@ -339,7 +342,7 @@ export function startDebug(world: World, params: URLSearchParams) {
             if (prev) speed = Math.max(speed, Math.hypot(eye[0] - prev[0], eye[1] - prev[1], eye[2] - prev[2]) * S * 60);
             prev = eye;
             treeCheck(eye, late ? chest : null);
-            animalCheck(eye, late ? chest : null, shot.clear);
+            animalCheck(eye, late ? chest : null, (u === 1 && shot.view) || (shot.clear as V3[]));
             diveAnimals(eye, late ? chest : null, hp, 1 / 60);
             if (late && blocked(eye, hp, blocks)) { props++; console.warn("prop hides the hiker on the dive:", label); }
           }
@@ -348,6 +351,7 @@ export function startDebug(world: World, params: URLSearchParams) {
     follow();
     const out = {
       minGroundGapM: +walk.ground.toFixed(2), minTreeGapM: +walk.tree.toFixed(2), treeSightHits: walk.sight, propHits: walk.props, maxEyeStepM: +jump.toFixed(2),
+      walkTreesClearedAvg: +(cleared / frames).toFixed(1), walkTreesClearedMax: clearedMax,
       stopsAndFlights: flights, flightMinGroundGapM: +flight.ground.toFixed(2), flightMinTreeGapM: +flight.tree.toFixed(2), flightTreeSightHits: flight.sight, flightPropHits: flight.props, lowest: worst,
       walkAnimalSightHits: walkWild.sightMesh, walkAnimalCorridorHits: walkWild.corridorMesh, walkMinAnimalGapM: walkWild.worstMesh,
       walkReachSphereSightHits: walkWild.sight, walkReachSphereCorridorHits: walkWild.corridor, walkMinReachSphereGapM: +walkWild.eye.toFixed(2),

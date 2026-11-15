@@ -4,6 +4,8 @@ import { BufferAttribute, BufferGeometry } from "three";
 import { S, type RGB } from "./config";
 
 export type V3 = [number, number, number];
+/** A point kept free of trees, with its own clearing radius as an optional fourth number. */
+export type ClearPoint = V3 | [number, number, number, number];
 
 export const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 export const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
