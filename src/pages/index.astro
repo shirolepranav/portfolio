@@ -10,7 +10,7 @@ import { site } from "../content/site.ts";
 
 const { profile } = site;
 ---
-<Base title={`${profile.name} · ${profile.role}`} description={profile.tagline} path="/">
+<Base title={`${profile.name} · ${profile.role}`} description={profile.tagline} path="/" person>
   <Landing page="landing" />
   <Lake landing><IslandStill eager /></Lake>
 </Base>

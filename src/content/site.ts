@@ -289,6 +289,7 @@ export const site = {
     github: "GitHub",
     x: "X",
     instagram: "Instagram",
+    shareImageAlt: "{name}, {role}, over a low-poly mountain lake ringed by snowy peaks", // the link preview picture; {name} and {role} come from profile
     heroStillAlt:
       "A low-poly hiker stands on the shore of a turquoise lake ringed by snowy peaks, a fire lookout tower on the far bank",
   },

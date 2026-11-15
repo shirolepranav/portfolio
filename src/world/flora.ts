@@ -1,7 +1,7 @@
 // Instanced trees, rocks and lanterns: one draw call each. Ported from trees(), boulders() and lanterns() in scene.py.
 import { Color, InstancedMesh, Matrix4, Quaternion, Vector3, type Material } from "three";
 import { C, D2R, S, TV, type RGB } from "./config";
-import { MeshBuilder, angdiff, blob, box, cone, fbm, lift, limb, scaleRGB, smooth, toWorld, type V3 } from "./core";
+import { MeshBuilder, angdiff, blob, box, cone, fbm, lift, limb, scaleRGB, smooth, toWorld, type ClearPoint, type V3 } from "./core";
 import { radius, type Terrain } from "./terrain";
 
 const m4 = new Matrix4(), q = new Quaternion(), up = new Vector3(0, 1, 0), col = new Color();
@@ -51,16 +51,17 @@ export function createTrees(terrain: Terrain, material: Material, clear: V3[], c
     /** Shows the first n trees (quality tiers). */
     setCount(n: number) { crowns.count = trunks.count = Math.min(n, spots.length); },
     /**
-     * Clears trees near the given points, as the scripts clear a camera's view for each shot. Trees within r are
-     * gone; just beyond it they shrink into the ground, so the walking camera never makes them pop.
+     * Clears trees near the given points, as the scripts clear a camera's view for each shot. Trees within r (or a
+     * point's own radius) are gone; just beyond it they shrink into the ground, so the walking camera never makes them pop.
      */
-    clearAround(points: V3[], r = 0.13) {
+    clearAround(points: ClearPoint[], r = 0.13) {
       let changed = false;
-      const r2 = (r + 0.04) ** 2;
       spots.forEach((s, i) => {
-        let d2 = r2;
-        for (const c of points) d2 = Math.min(d2, (s.p[0] - c[0]) ** 2 + (s.p[2] - c[2]) ** 2);
-        const k = smooth(r, r + 0.04, Math.sqrt(d2));
+        let k = 1;
+        for (const c of points) {
+          const cr = c[3] ?? r, dx = s.p[0] - c[0], dz = s.p[2] - c[2];
+          if (dx * dx + dz * dz < (cr + 0.04) ** 2) k = Math.min(k, smooth(cr, cr + 0.04, Math.hypot(dx, dz)));
+        }
         if (k !== scale[i]) { scale[i] = k; set(i, k); changed = true; }
       });
       if (changed) crowns.instanceMatrix.needsUpdate = trunks.instanceMatrix.needsUpdate = true;

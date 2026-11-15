@@ -2,7 +2,7 @@
 // and the trail-follow camera, which is the walk shot moved to wherever the hiker stands.
 import { CatmullRomCurve3, Vector3 } from "three";
 import { D2R, S, T_TRAIL } from "./config";
-import { add, cross, lerp, lift, mul, norm, smooth, sub, toWorld, type V3 } from "./core";
+import { add, cross, lerp, lift, mul, norm, smooth, sub, toWorld, type ClearPoint, type V3 } from "./core";
 import type { Env } from "./lighting";
 import type { Terrain } from "./terrain";
 import type { Block } from "./props/index";
@@ -20,7 +20,8 @@ export interface Shot {
   sun: { day: [number, number]; night: [number, number] };  // azimuth, elevation in degrees
   tweak?: (env: Env) => void;        // per-shot light changes from the script
   orbit: boolean;                    // floating-island view: backdrop sky, underside drawn
-  clear: V3[];                       // points kept free of trees, as the script does per shot
+  clear: ClearPoint[];               // points kept free of trees, as the script does per shot
+  view?: V3[];                       // walking only: the view corridor ahead, for the clearance audit's animal checks
   size: [number, number];            // the reference frame's pixel size
 }
 
@@ -29,6 +30,17 @@ export function corridor(eye: V3, vd: V3, right: V3, length = 0.5, half = 0.09) 
   const pts: V3[] = [];
   for (let d = 0; d <= length + 0.01; d += 0.08)
     for (const s of [-1, 0, 1]) pts.push(add(add(eye, mul(vd, d)), mul(right, s * half * (0.5 + d))));
+  return pts;
+}
+
+/**
+ * The walking camera's clearing: a bubble round the eye, and a thinner strip along the line from the eye to the
+ * hiker's chest. Everything else stays standing, so looking round shows the forest.
+ */
+export function sightLine(eye: V3, chest: V3, bubble = 0.13, line = 0.07) {
+  const pts: ClearPoint[] = [[eye[0], eye[1], eye[2], bubble]];
+  const n = Math.ceil(Math.hypot(chest[0] - eye[0], chest[2] - eye[2]) / 0.04); // a point every 0.04 units
+  for (let i = 1; i <= n; i++) pts.push([...add(mul(eye, 1 - i / n), mul(chest, i / n)), line]);
   return pts;
 }
 
@@ -172,7 +184,8 @@ export function walkShot(terrain: Terrain, deg: number, portrait: boolean, look 
   }
   return {
     eye: v3(eye), target: v3(tgt), fov: portrait ? 64 : 50, shift: [0, 0],
-    sun: WALK_SUN, orbit: false, clear: slide ? corridor(eye, norm(flat(sub(tgt, eye))), right) : corridor(eye, vd, right), size: portrait ? [780, 1688] : [2160, 1350],
+    sun: WALK_SUN, orbit: false, clear: sightLine(eye, chest),
+    view: slide ? corridor(eye, norm(flat(sub(tgt, eye))), right) : corridor(eye, vd, right), size: portrait ? [780, 1688] : [2160, 1350],
   };
 }
 
