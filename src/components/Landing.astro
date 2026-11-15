@@ -1,0 +1,252 @@
+---
+// The landing's text and buttons, over the island (Main and Landing-Desktop designs). Both / and /lake render it, so
+// the lake's logo pill can fly back up to it without a page load: on /lake it starts lifted away and inert.
+// When the 3D can't run, "Walk the lake" gives way to a short message (src/ui/lake.ts sets data-lake="failed").
+// Every word comes from src/content/site.ts.
+import Logo from "./Logo.astro";
+import Icon from "./Icon.astro";
+import DayNightToggle from "./DayNightToggle.astro";
+import { site } from "../content/site.ts";
+import { visibleStops } from "../content/helpers.ts";
+import type { StopId } from "../content/types.ts";
+
+interface Props { page: "landing" | "lake" }
+const { page } = Astro.props;
+const { profile, ui } = site;
+const cityShort = profile.city.split(",")[0];
+const shown = page === "landing";
+
+// Where each stop's pin sits on the desktop frame, in px of the 1440 x 900 design.
+const pinAt: Record<StopId, [number, number]> = {
+  trailhead: [904, 500], cabin: [1122, 446], lookout: [1140, 330], camp: [934, 320],
+  dock: [790, 372], point: [668, 428], campfire: [742, 520],
+};
+const stops = visibleStops(site.sections);
+---
+<!-- The main landmark while the text is up; the lake shell takes it over after the dive (src/ui/landing.ts). -->
+<div class="landing" data-page={page} role={shown ? "main" : undefined} inert={!shown || undefined}>
+  <div class="top">
+    <span class="mark"><Logo /><span class="label">{ui.portfolioMark}</span></span>
+    <div class="tools">
+      <!-- Sound: off until turned on, and remembered. Desktop only, as drawn. The HUD drives it once the 3D is up. -->
+      <button type="button" class="sound" data-sound aria-pressed="false" aria-label={ui.sound} title={ui.sound}>
+        <Icon name="sound" size={20} stroke={2} /><Icon name="mute" size={20} stroke={2} />
+      </button>
+      <DayNightToggle />
+    </div>
+  </div>
+
+  <div class="scene">
+    <ol class="pins" data-landing-pins aria-hidden="true">
+      {stops.map((s, i) => {
+        const [x, y] = pinAt[s.id];
+        const first = s.sections[0];
+        return (
+          <li class="label" data-landing-pin={s.id} style={`left: ${(x / 14.4).toFixed(2)}%; top: ${(y / 9).toFixed(2)}%`}>
+            <span class="num">{i + 1}</span>{first.short ?? first.label}
+          </li>
+        );
+      })}
+    </ol>
+  </div>
+
+  <div class="intro">
+    <span class="label kicker">{profile.role}<span class="wide"> · {cityShort}</span></span>
+    <h1 class="display" tabindex="-1">{profile.name}</h1>
+  </div>
+
+  <div class="actions">
+    <p class="tagline">{profile.tagline}</p>
+    <div class="buttons">
+      <a class="way walk" href="/lake">
+        <span class="way-text">
+          <span class="way-label">{ui.landingWalk}</span>
+          <span class="label way-sub">{ui.landingWalkSub.replace("{stops}", String(stops.length))}</span>
+        </span>
+        <span class="badge"><Icon name="arrow" size={20} /></span>
+      </a>
+      <!-- No WebGL, or a lost context: the message takes the walk button's place (no dead button). -->
+      <div class="way off" data-landing-off role="status">
+        <span class="way-text">
+          <span class="way-label" data-off-title>{ui.fallbackTitle}</span>
+          <span class="off-line" data-off-line>{ui.fallbackLine}</span>
+        </span>
+        <button type="button" class="label retry" data-retry>{ui.tryAgain}</button>
+      </div>
+      <a class="way quick" href="/highlights">
+        <span class="way-text">
+          <span class="way-label">{ui.landingHighlights}</span>
+          <span class="label way-sub">{ui.landingHighlightsSub}</span>
+        </span>
+        <span class="badge"><Icon name="arrow" size={20} /></span>
+      </a>
+    </div>
+    <p class="note">{ui.landingNote}</p>
+  </div>
+</div>
+
+<script>
+  // Before the 3D: the sound button just remembers the choice.
+  const sound = document.querySelector<HTMLButtonElement>(".landing [data-sound]")!;
+  const KEY = "lake:sound";
+  try { sound.setAttribute("aria-pressed", String(localStorage.getItem(KEY) === "on")); } catch {}
+  sound.addEventListener("click", () => {
+    if (sound.hasAttribute("data-live")) return;
+    const on = sound.getAttribute("aria-pressed") !== "true";
+    sound.setAttribute("aria-pressed", String(on));
+    try { localStorage.setItem(KEY, on ? "on" : "off"); } catch {}
+  });
+</script>
+
+<style>
+  /* Phone first (Main, 390 x 844). Colours switch with :root[data-mode]. */
+  h1 { outline: none; } /* focused by script after the flight back up, never by Tab */
+  .landing {
+    --fg: var(--ink); --fg-2: var(--slate);
+    --walk-bg: var(--ink); --walk-fg: var(--paper); --walk-sub: var(--mist); --walk-badge: var(--coral); --walk-badge-fg: var(--ink);
+    --quick-bg: rgb(243 239 232 / 0.92); --quick-fg: var(--ink); --quick-sub: var(--slate);
+    --pin-bg: rgb(243 239 232 / 0.9); --pin-num-bg: var(--ink); --pin-num-fg: var(--paper);
+
+    position: relative; z-index: 1; isolation: isolate; overflow: hidden;
+    min-height: 100svh; display: flex; flex-direction: column;
+    padding: 18px 16px; color: var(--fg);
+    pointer-events: none; /* drags on the open island reach the canvas underneath */
+    transition: opacity 0.45s ease 0.95s, translate 0.45s ease 0.95s; /* back from the lake: drops in as the camera arrives */
+  }
+  .landing > :not(.scene) { pointer-events: auto; }
+  /* The dive: the text lifts away as the camera drops. */
+  .landing:not([data-page="landing"]) { opacity: 0; translate: 0 -40px; transition: opacity 0.4s ease-in, translate 0.5s ease-in; }
+  /* Night has no drawn design: the nearest pattern is the night HUD (Night glass, Paper text, Teal main action). */
+  :root[data-mode="night"] .landing {
+    --fg: var(--paper); --fg-2: var(--mist);
+    --walk-bg: var(--teal); --walk-fg: var(--ink); --walk-sub: var(--night); --walk-badge: var(--ink); --walk-badge-fg: var(--paper);
+    --quick-bg: var(--glass-night); --quick-fg: var(--paper); --quick-sub: var(--mist);
+    --pin-bg: var(--glass-night); --pin-num-bg: var(--paper); --pin-num-fg: var(--ink);
+  }
+
+  /* Text straight over the island, measured against the real pixels (docs/phase-8/contrast.json): by night Paper drops
+     under 3:1 where the phone's name crosses the moonlit snow, and small text under 4.5:1 on the lighter lower sky; by
+     day the phone still puts the tagline over the dark rock underside. A soft halo in the ground's own colour (Paper by
+     day, Night by night), tighter on small text, keeps every line above AA. Paper for the night note. */
+  .landing { --halo: rgb(243 239 232 / 0.8); }
+  :root[data-mode="night"] .landing { --halo: rgb(11 22 32 / 0.85); }
+  :is(.kicker, h1) { text-shadow: 0 0 16px var(--halo), 0 0 3px var(--halo); }
+  .tagline { text-shadow: 0 0 2px var(--halo), 0 0 6px var(--halo), 0 0 16px var(--halo); }
+  :is(.note, .mark .label) { text-shadow: 0 0 1px var(--halo), 0 0 3px var(--halo), 0 0 8px var(--halo), 0 0 16px var(--halo); }
+  :root[data-mode="night"] .note { color: var(--paper); }
+
+  .top { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 2px; }
+  .mark { display: flex; align-items: center; gap: 8px; }
+  .mark .label { letter-spacing: 0.14em; font-weight: 500; }
+  .tools { display: flex; align-items: center; gap: 10px; }
+  /* A 48 px glass circle, as drawn. Desktop only. */
+  .sound {
+    display: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; place-items: center;
+    background: var(--glass-day); color: var(--ink); cursor: pointer;
+  }
+  :root[data-mode="night"] .sound { background: var(--glass-night); color: var(--paper); }
+  .sound[aria-pressed="true"] :global(svg:last-child), .sound[aria-pressed="false"] :global(svg:first-child) { display: none; }
+
+  .scene { position: absolute; inset: 0; z-index: -1; }
+
+  .intro { display: flex; flex-direction: column; gap: 8px; margin-top: 22px; padding: 0 4px; max-width: 460px; }
+  .kicker { letter-spacing: 0.16em; font-weight: 500; }
+  .kicker .wide { display: none; }
+  h1 { font-size: 70px; }
+
+  .actions { display: flex; flex-direction: column; gap: 14px; margin-top: auto; padding-top: 24px; max-width: 460px; }
+  .tagline { margin: 0 0 0 4px; max-width: 232px; font-size: 19px; line-height: 1.28; font-weight: 500; text-wrap: balance; }
+  .buttons { display: flex; flex-direction: column; gap: 10px; }
+  .way {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 76px; padding: 0 16px 0 20px; border-radius: var(--radius-button); text-decoration: none;
+  }
+  .way-text { display: flex; flex-direction: column; gap: 5px; }
+  .way-label {
+    font-family: var(--font-display); font-weight: 800; font-size: 28px; line-height: 1;
+    text-transform: uppercase; letter-spacing: 0.01em;
+  }
+  .way-sub { letter-spacing: 0.1em; }
+  .badge {
+    flex: none; width: var(--touch); height: var(--touch); border-radius: 50%;
+    display: grid; place-items: center; transition: transform 0.18s ease;
+  }
+  .way:hover .badge { transform: translateX(3px); }
+  .way:active .badge { transform: translateX(1px) scale(0.94); }
+
+  .walk { background: var(--walk-bg); color: var(--walk-fg); }
+  .walk .way-sub { color: var(--walk-sub); }
+  .walk .badge { background: var(--walk-badge); color: var(--walk-badge-fg); }
+  .quick { background: var(--quick-bg); color: var(--quick-fg); border: 1.5px solid var(--quick-fg); }
+  .quick .way-sub { color: var(--quick-sub); }
+  .quick .badge { border: 1.5px solid var(--quick-fg); }
+
+  .note { margin: 0 0 0 4px; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; letter-spacing: 0.04em; color: var(--fg-2); }
+
+  /* No 3D: the quick path comes first and the walk button becomes the message. Not drawn: it copies the
+     outlined Highlights button's shape, as a quiet glass card, with a "Try again" pill after a lost context. */
+  .off { display: none; padding: 16px 16px 16px 20px; background: var(--quick-bg); color: var(--fg); }
+  .off .way-label { font-size: 24px; }
+  .off-line { font-size: 15px; line-height: 1.35; color: var(--fg-2); }
+  .retry {
+    flex: none; min-width: var(--touch); min-height: var(--touch); padding: 0 16px; border-radius: var(--radius-pill);
+    border: 1.5px solid currentColor; background: transparent; color: inherit; font-weight: 500; letter-spacing: 0.12em; cursor: pointer;
+  }
+  :root:not([data-fail="lost"]) .retry { display: none; }
+  :root[data-lake="failed"] .walk { display: none; }
+  :root[data-lake="failed"] .off { display: flex; }
+  :root[data-lake="failed"] .quick { order: -1; }
+  :root[data-lake="failed"] .pins { visibility: hidden; }
+
+  /* Stop pins: desktop only. The box matches the cover-scaled frame, so pins stay on their props. */
+  .pins {
+    display: none; position: absolute; left: 50%; top: 50%; translate: -50% -50%;
+    aspect-ratio: 1440 / 900; min-width: 100%; min-height: 100%; margin: 0; padding: 0; list-style: none;
+  }
+  .pins li {
+    position: absolute; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 4px;
+    border-radius: var(--radius-pill); background: var(--pin-bg); color: var(--fg); font-weight: 500;
+  }
+  .num {
+    width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--pin-num-bg); color: var(--pin-num-fg); font-size: 10px; letter-spacing: 0;
+  }
+
+  /* Reduced motion: the quick path comes first, and the dive is a cut. */
+  @media (prefers-reduced-motion: reduce) {
+    .quick { order: -1; }
+    .badge, .landing, .landing:not([data-page="landing"]) { transition: none; }
+  }
+
+  /* Desktop (Landing-Desktop, 1440 x 900): one text column in the left third. */
+  @media (min-width: 900px) and (orientation: landscape) {
+    .landing { padding: 28px 72px 34px; }
+    .top { padding: 0; }
+    .mark { gap: 10px; }
+    .mark :global(svg) { width: 24px; height: 24px; }
+    .mark .label { font-size: 12px; }
+    :root[data-js] .sound { display: grid; }
+
+    .intro { gap: 12px; margin-top: 56px; padding: 0; width: 460px; }
+    .kicker { font-size: 13px; }
+    .kicker .wide { display: inline; }
+    h1 { font-size: 156px; line-height: 0.84; }
+
+    .actions { gap: 26px; margin-top: 26px; padding-top: 0; width: 460px; }
+    .tagline { margin: 0; max-width: 400px; font-size: 25px; }
+    .buttons { gap: 12px; }
+    .way { gap: 16px; min-height: 92px; padding: 0 20px 0 26px; border-radius: 26px; }
+    .way-text { gap: 7px; }
+    .way-label { font-size: 36px; }
+    .way-sub { font-size: 12px; }
+    .badge { width: 52px; height: 52px; }
+    .badge :global(svg) { width: 22px; height: 22px; }
+    .note { margin: 0; font-size: 12px; }
+    .off { padding: 20px 20px 20px 26px; }
+    .off .way-label { font-size: 30px; }
+    .off-line { font-size: 16px; }
+  }
+  @media (min-width: 1200px) and (orientation: landscape) {
+    .pins { display: block; }
+  }
+</style>

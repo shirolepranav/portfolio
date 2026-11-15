@@ -1,11 +1,14 @@
 ---
-// Page shell: fonts, tokens and global styles for every page.
+// Page shell: fonts, tokens and global styles for every page, plus the title, description and canonical address.
+// The address comes from profile.site in src/content/site.ts. The share image and Person data arrive in Phase 9.
 import { Font } from "astro:assets";
+import { site } from "../content/site.ts";
 import "../styles/tokens.css";
 import "../styles/global.css";
 
-interface Props { title: string; description?: string }
-const { title, description } = Astro.props;
+interface Props { title: string; description?: string; path: string }
+const { title, description, path } = Astro.props;
+const url = `${site.profile.site}${path}`;
 ---
 <!doctype html>
 <html lang="en">
@@ -15,6 +18,11 @@ const { title, description } = Astro.props;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={url} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={url} />
     <Font cssVariable="--font-display" preload />
     <Font cssVariable="--font-mono" preload />
     <Font cssVariable="--font-body" preload />

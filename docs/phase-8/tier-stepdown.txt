@@ -1,0 +1,45 @@
+# Tier step-down (src/world/governor.ts)
+
+Rule: drawn frames only (not hidden, not the first 2 s, not the dive). A full 3 s window averaging under 45 fps steps down one tier;
+then 3 s ignored and a fresh 3 s window. A lone gap of 1 s or more between fast frames is a pause and restarts the window;
+two long gaps in a row are slowness. Never steps up. On low, under 30 fps reports "still" once (the landing shows its still).
+The stepped tier is kept in sessionStorage (lake:tier) for the browser session.
+
+## 1. Synthetic frame streams (node scripts/governor-test.ts)
+
+steady 60 fps                              ends high   no change
+steady 46 fps (just above the line)        ends high   no change
+steady 40 fps                              ends low    5.03 s high->medium (40.0 fps), 11.03 s medium->low (40.0 fps)
+40 fps, then 60 fps after the first step   ends medium 5.03 s high->medium (40.0 fps)
+swings 30/60 fps every second              ends low    5.50 s high->medium (44.9 fps), 11.51 s medium->low (44.9 fps)
+swings 40/50 fps every 2.5 s               ends low    5.02 s high->medium (41.6 fps), 11.04 s medium->low (43.4 fps)
+one 1.2 s frozen frame, otherwise 60       ends high   no change
+one 2 s stall at 5 fps, otherwise 60       ends medium 11.00 s high->medium (41.5 fps)
+steady 0.8 fps (every gap over 1 s)        ends low    8.75 s high->medium (0.8 fps), 17.50 s medium->low (0.8 fps), 26.25 s low->still (0.8 fps)
+1.2 s frozen frames every 10 s, else 60    ends high   no change
+steady 20 fps (landing)                    ends low    5.10 s high->medium (20.0 fps), 11.10 s medium->low (20.0 fps), 17.10 s low->still (20.0 fps)
+
+## 2. Real browser, forced slow: software WebGL in the cloud container draws about 1 to 3 fps
+(/lake?debug&tier=high, then a reload in the same session, then /?debug&tier=high). Times are wall clock from navigation.
+
+/lake?debug&tier=high (fresh session)
+  1.0 s wall · started: tier high, 3 s avg NaN fps
+  14.5 s wall · [tier] high -> medium at 14.4 s (1.8 fps over 3 s)
+  15.0 s wall · check: tier medium, 3 s avg 1.8 fps
+  23.4 s wall · [tier] medium -> low at 23.4 s (1.7 fps over 3 s)
+  26.5 s wall · check: tier low, 3 s avg 1.7 fps
+  33.1 s wall · [tier] low -> still at 33.1 s (3.1 fps over 3 s)
+  36.6 s wall · check: tier low, 3 s avg 1.9 fps
+  46.6 s wall · check: tier low, 3 s avg 3.2 fps
+  56.6 s wall · check: tier low, 3 s avg 4.0 fps
+  66.6 s wall · check: tier low, 3 s avg 3.8 fps
+reload, same session (no &tier):
+  8.2 s wall · started: tier low, 3 s avg NaN fps
+  14.6 s wall · [tier] low -> still at 14.6 s (27.9 fps over 3 s)
+  23.4 s wall · check: tier low, 3 s avg 3.4 fps
+landing /?debug&tier=high:
+  7.8 s wall · started: tier high, 3 s avg NaN fps
+  19.8 s wall · [tier] high -> medium at 19.8 s (1.0 fps over 3 s)
+  27.3 s wall · [tier] medium -> low at 27.2 s (1.6 fps over 3 s)
+  35.9 s wall · [tier] low -> still at 35.9 s (2.7 fps over 3 s)
+  35.9 s wall · still shown (data-still set, world.running false): tier low, 3 s avg 2.7 fps

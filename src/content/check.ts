@@ -20,12 +20,14 @@ function required(value: unknown, where: string) {
 
 // Profile
 const p = site.profile;
-for (const key of ["name", "role", "city", "tagline", "pitch", "resume", "email"] as const) {
+for (const key of ["name", "role", "city", "tagline", "pitch", "resume", "email", "site"] as const) {
   required(p[key], `profile.${key}`);
 }
 if (p.resume && !inPublic(p.resume)) {
   (launch ? errors : warnings).push(`The résumé "${p.resume}" is not in /public yet.`);
 }
+
+if (p.site && !/^https:\/\/[^/]+$/.test(p.site)) errors.push(`profile.site "${p.site}" should look like https://example.com, with no slash at the end.`);
 
 // Stop names
 for (const id of STOP_IDS) { required(site.stops[id], `stops.${id}`); required(site.stopsShort[id], `stopsShort.${id}`); }

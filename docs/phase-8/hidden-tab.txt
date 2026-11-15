@@ -1,0 +1,4 @@
+sound on: running
+visible: 12 frames in 5 s · document.hidden false · world.running true · audio running
+hidden (another tab in front): 0 frames in 5 s · document.hidden true · world.running false · audio suspended
+visible again: 13 frames in 5 s · document.hidden false · world.running true · audio running

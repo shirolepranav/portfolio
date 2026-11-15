@@ -3,6 +3,8 @@
 // URL extras: &progress=0..1 puts the hiker there, &shot=<name> starts on a shot, &tier=low|medium|high,
 // &stop=<id> opens a stop at once (no glide), &map=1 opens the map, &panel=0 hides the panel,
 // &sweep=0..1 holds the day-to-night sweep at that point, &animals=0 hides the wildlife.
+// Tiers: &govern=0 turns the step-down off (fixed-tier screenshots); &slow=<ms> burns that many ms of main thread per
+// frame, to force a low frame rate and watch the step-down (also the "slow" buttons). "lose context" tests the fallback.
 // Buttons: each prop's reaction on demand, the sweep (the page's day or night toggle), and wildlife on or off.
 // After the dive or the flight back up, the panel shows its frame count, worst frame and frames over 20 ms.
 // From the console: clearance() checks the walking camera all round the loop, every stop shot, the flights and the
@@ -26,6 +28,10 @@ export function startDebug(world: World, params: URLSearchParams) {
 
   const tier = params.get("tier");
   if (tier && tier in TIERS) world.setTier(tier as Tier);
+  if (params.get("govern") === "0") world.governor.enabled = false;
+  // Forced slowness: a busy loop on every frame, so the real frame rate drops as on a weak phone.
+  let slow = +(params.get("slow") ?? 0) || 0;
+  world.onFrame(() => { const end = performance.now() + slow; while (performance.now() < end); });
   const progress = params.get("progress");
   if (progress) world.setProgress(+progress);
   // A shot pins the camera and frees it for orbiting; follow hands it back to the walk.
@@ -63,6 +69,11 @@ export function startDebug(world: World, params: URLSearchParams) {
   panel.append(stats, slider, row(Object.keys(TIERS), (t) => world.setTier(t as Tier)), row(["follow", ...SHOTS], (s) => (s === "follow" ? follow() : jump(s as ShotName))),
     row([...world.stops, "map", "close"], (s) => (s === "map" ? world.showMap(true) : s === "close" ? world.close() : openNow(s as StopId))),
     row(world.stops.map((s) => `react ${s}`), (s) => world.react(s.slice(6) as StopId)),
+    row(["slow 0", "slow 15", "slow 25", "slow 40", "govern on/off", "lose context"], (s) => {
+      if (s.startsWith("slow")) slow = +s.slice(5);
+      else if (s === "lose context") renderer.getContext().getExtension("WEBGL_lose_context")?.loseContext();
+      else world.governor.enabled = !world.governor.enabled;
+    }),
     row(["sweep", "hold 0", "hold .25", "hold .5", "hold .75", "hold 1", "release", "animals"], (s) => {
       if (s === "sweep") document.querySelector<HTMLElement>("[data-mode-cycle]")?.click(); // the page's own toggle, so the HUD follows
       else if (s === "release") world.pinSweep(null);
@@ -96,6 +107,12 @@ export function startDebug(world: World, params: URLSearchParams) {
     gaps = null;
   });
   panel.append(diveLine);
+  // The step-down: every step so far, with the time since load and the window's average.
+  const tierLine = document.createElement("div");
+  document.addEventListener("lake:tier", () => {
+    tierLine.textContent = "steps: " + world.governor.log.map((e) => `${e.at.toFixed(1)} s ${e.from}→${e.to} (${e.fps.toFixed(0)} fps)`).join(", ");
+  });
+  panel.append(tierLine);
 
   // Frames per second over one-second windows. "All" counts every pass of the last frame: shadow, mirror, camera, glow.
   let frames = 0, since = performance.now();
@@ -108,7 +125,9 @@ export function startDebug(world: World, params: URLSearchParams) {
     if (document.activeElement !== slider) slider.value = String(p);
     if (now - since < 1000) return;
     const all = { ...renderer.info.render }, main = mainPass();
-    stats.textContent = `${((frames * 1000) / (now - since)).toFixed(0)} fps · ${world.tier} · progress ${p.toFixed(3)} (${progressDeg(p).toFixed(0)}°) · ` +
+    const g = world.governor, gfps = Number.isNaN(g.fps) ? "–" : g.fps.toFixed(0);
+    stats.textContent = `${((frames * 1000) / (now - since)).toFixed(0)} fps · ${world.tier} (step-down ${g.enabled ? `on, 3 s avg ${gfps}` : "off"}) · ` +
+      `cpu ${world.cpuMs.toFixed(1)} ms/frame${slow ? ` (slow +${slow})` : ""} · progress ${p.toFixed(3)} (${progressDeg(p).toFixed(0)}°) · ` +
       `in view ${main.calls} calls ${k(main.triangles)} tris · all passes ${all.calls} calls ${k(all.triangles)} tris`;
     frames = 0; since = performance.now();
   });

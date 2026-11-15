@@ -1,8 +1,10 @@
 ---
 // The lake's shell: the canvas, the HUD over it, and a still under it while the world loads.
-// /lake renders it on its own. The landing renders it too, under the landing's text, with the island still in the slot:
-// both share one canvas and one world, so the dive into the lake needs no new page.
+// Both / and /lake render it under the landing's text, with the island stills in the slot: they share one canvas and
+// one world, so the dive into the lake (and the flight back up) needs no new page. /lake adds the walking still.
+// If the 3D can't run (no WebGL, or a lost context), a short card offers Highlights instead.
 import Still from "../Still.astro";
+import Icon from "../Icon.astro";
 import Hud from "./Hud.astro";
 import { site } from "../../content/site.ts";
 import { visibleStops } from "../../content/helpers.ts";
@@ -18,15 +20,35 @@ const items = (id: string) =>
   stops.find((s) => s.id === id)?.sections.reduce((n, s) => n + (s.kind === "projects" ? s.items.length : 0), 0) ?? 0;
 const world = { tents: items("camp"), canoes: items("dock"), stops: stops.map((s) => s.id) };
 ---
-<div class="lake" data-page={landing ? "landing" : "lake"} data-title={`${profile.name} · ${ui.landingWalk}`}>
+<!-- The main landmark on the lake; the landing's text holds it while it is up (src/ui/landing.ts swaps them). -->
+<!-- On the landing the island behind the text is decoration (its words are the landing's), so it is hidden from
+     screen readers until the dive. -->
+<div class="lake" data-page={landing ? "landing" : "lake"} role={landing ? undefined : "main"} aria-hidden={landing ? "true" : undefined}
+  data-title={`${profile.name} · ${ui.landingWalk}`} data-landing-title={`${profile.name} · ${profile.role}`}>
+  <h1 class="lake-title" tabindex="-1">{ui.landingWalk}</h1>
   <div class="still">
-    {landing ? <slot /> : <div class="walk-still"><Still phone={walkPhone} desktop={walkDesktop} alt={ui.lakeStillAlt} eager /></div>}
+    <slot />
+    {!landing && <div class="walk-still"><Still phone={walkPhone} desktop={walkDesktop} alt={ui.lakeStillAlt} eager /></div>}
   </div>
-  <canvas id="world" aria-label={ui.lakeCanvas} data-world={JSON.stringify(world)}></canvas>
+  <canvas id="world" role="img" aria-label={ui.lakeCanvas} data-world={JSON.stringify(world)}></canvas>
   <a class="skip" href="/highlights">{ui.skipToHighlights}</a>
   <div class="vignette" aria-hidden="true"></div>
   {!landing && <div class="progress" aria-hidden="true"></div>}
   <Hud />
+  <!-- No WebGL, or the context was lost: not drawn, so it copies the stop panel (glass, 28 px corners, display title)
+       and the primary pill with its arrow badge. src/ui/lake.ts fills the lost-context words and shows it. -->
+  <section class="fallback" data-fallback aria-labelledby="fallback-title" hidden
+    data-fallback-words={JSON.stringify({ nogl: ui.fallbackTitle, lost: ui.fallbackLostTitle })}>
+    <h2 class="display" id="fallback-title" tabindex="-1" data-off-title>{ui.fallbackTitle}</h2>
+    <p data-off-line>{ui.fallbackLine}</p>
+    <div class="fb-actions">
+      <a class="fb-go" href="/highlights">
+        <span class="fb-text">{ui.landingHighlights}</span>
+        <span class="fb-badge"><Icon name="arrow" size={20} /></span>
+      </a>
+      <button type="button" class="fb-retry label" data-retry>{ui.tryAgain}</button>
+    </div>
+  </section>
 </div>
 
 <style>
@@ -35,16 +57,25 @@ const world = { tents: items("camp"), canoes: items("dock"), stops: stops.map((s
   .lake { position: fixed; inset: 0; background: var(--sand); }
   :root[data-mode="night"] .lake { background: var(--night); }
 
-  /* No night walking still exists, so night loads on the Night ground. */
-  :root[data-mode="night"] .walk-still { display: none; }
+  /* No night walking still exists, so night loads on the Night ground. The landing shows its island stills instead. */
+  :root[data-mode="night"] .walk-still, [data-page="landing"] .walk-still { display: none; }
+  /* A heading for the lake, for screen readers and as the place focus lands after the dive. */
+  .lake-title {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  [data-page="landing"] .lake-title { display: none; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 0.6s ease; touch-action: none; }
   :root[data-lake="ready"] canvas { opacity: 1; }
+  /* The landing's low-power fallback (still under 30 fps on the low tier): the island still shows instead. */
+  :root[data-still] [data-page="landing"] canvas { opacity: 0; }
   /* The landing still lets a finger scroll the page up and down; sideways drags spin the island. */
   [data-page="landing"] canvas { touch-action: pan-y; }
 
   /* Visible only when focused: the first stop for keyboard users who want the plain page. */
   .skip {
-    position: absolute; left: 12px; top: 12px; z-index: 10; padding: 12px 18px; border-radius: var(--radius-pill);
+    position: absolute; left: 12px; top: 12px; z-index: 10; display: flex; align-items: center; min-height: var(--touch);
+    padding: 0 18px; border-radius: var(--radius-pill);
     background: var(--ink); color: var(--paper); font: 500 12px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase;
     text-decoration: none; transform: translateY(-200%);
   }
@@ -68,6 +99,48 @@ const world = { tents: items("camp"), canoes: items("dock"), stops: stops.map((s
   }
   :root[data-lake="building"] .progress { width: 55%; }
   :root[data-lake="ready"] .progress { width: 100%; opacity: 0; }
+  :root[data-lake="failed"] .progress { display: none; }
 
-  @media (prefers-reduced-motion: reduce) { canvas, .progress, .vignette, .lake :global([data-hud]) { transition: none; } }
+  .fallback {
+    --fb-glass: var(--glass-day); --fb-text: var(--ink);
+    --fb-go: var(--ink); --fb-go-text: var(--paper); --fb-badge: var(--coral); --fb-badge-text: var(--ink);
+    position: absolute; left: 16px; right: 16px; top: 50%; translate: 0 -50%; z-index: 5;
+    width: min(464px, 100% - 32px); margin: 0 auto; padding: 28px 24px 24px; border-radius: var(--radius-panel);
+    display: flex; flex-direction: column; gap: 14px; background: var(--fb-glass); color: var(--fb-text);
+  }
+  :root[data-mode="night"] .fallback {
+    --fb-glass: var(--glass-night); --fb-text: var(--paper);
+    --fb-go: var(--teal); --fb-go-text: var(--ink); --fb-badge: var(--ink); --fb-badge-text: var(--paper);
+  }
+  .fallback[hidden] { display: none; }
+  .fallback h2 { font-size: 46px; line-height: 0.9; outline: none; }
+  .fallback p { margin: 0; font-size: 17px; line-height: 1.4; color: var(--fb-text); }
+  .fb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+  .fb-go {
+    display: inline-flex; align-items: center; gap: 16px; min-height: 64px; padding: 0 10px 0 24px;
+    border-radius: var(--radius-pill); background: var(--fb-go); color: var(--fb-go-text); text-decoration: none;
+  }
+  .fb-text { font-family: var(--font-display); font-weight: 800; font-size: 24px; line-height: 1; text-transform: uppercase; letter-spacing: 0.01em; }
+  .fb-badge {
+    flex: none; width: var(--touch); height: var(--touch); border-radius: 50%; display: grid; place-items: center;
+    background: var(--fb-badge); color: var(--fb-badge-text); transition: transform 0.18s ease;
+  }
+  .fb-go:hover .fb-badge { transform: translateX(3px); }
+  .fb-go:active .fb-badge { transform: translateX(1px) scale(0.94); }
+  .fb-retry {
+    min-height: var(--touch); padding: 0 18px; border-radius: var(--radius-pill); border: 1.5px solid currentColor;
+    background: transparent; color: inherit; font-weight: 500; letter-spacing: 0.12em; cursor: pointer;
+  }
+  :root:not([data-fail="lost"]) .fb-retry { display: none; }
+  /* Failed: the canvas goes, the still stays, and the card shows on the lake (the landing has its own message). */
+  :root[data-lake="failed"] canvas { opacity: 0; visibility: hidden; }
+  :root[data-lake="failed"] .vignette { opacity: 0; }
+  :root[data-lake="failed"] .lake :global([data-hud]) { display: none; } /* pins set their own visibility, so hide it all */
+  [data-page="landing"] .fallback, [data-page="dive"] .fallback { display: none; }
+
+  @media (min-width: 900px) and (orientation: landscape) {
+    .fallback { padding: 36px 34px 32px; }
+    .fallback h2 { font-size: 60px; }
+  }
+  @media (prefers-reduced-motion: reduce) { canvas, .progress, .vignette, .lake :global([data-hud]), .fb-badge { transition: none; } }
 </style>

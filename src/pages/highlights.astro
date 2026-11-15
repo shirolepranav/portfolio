@@ -1,5 +1,8 @@
 ---
-// Highlights: the one-page version for recruiters. Static HTML, no JavaScript.
+// Highlights: the one-page version for recruiters. Static HTML that reads fully with JavaScript off.
+// Motion (PLAN.md, Highlights page): the name rises in letter by letter, then the pitch and buttons fade up, all by
+// 0.9 s; headings and rows fade up 12 px as they enter the view, once; "The path so far" draws left to right; arrows
+// nudge on hover and press. CSS does the load motion; one small inline script does the reveals. Reduced motion: none.
 // Every word comes from src/content/site.ts.
 import { Picture } from "astro:assets";
 import Base from "../layouts/Base.astro";
@@ -22,8 +25,12 @@ const blocks = highlightsBlocks(site.sections);
 const contact = blocks.find((b) => b.kind === "section" && b.section.kind === "contact");
 const contactHref = contact?.kind === "section" ? `#${contact.section.id}` : `mailto:${profile.email}`;
 const cityShort = profile.city.split(",")[0];
+// The name, split into words of letters for the rise-in. Each letter waits its turn (--i); words never break apart.
+const words = profile.name.split(" ").map((w) => [...w]);
+let letter = 0;
+const letters = words.map((w) => w.map((c) => ({ c, i: letter++ })));
 ---
-<Base title={`${profile.name} · ${profile.role}`} description={profile.pitch}>
+<Base title={`${profile.name} · ${profile.role}`} description={profile.pitch} path="/highlights">
   <div class="page">
     <header>
       <div class="bar">
@@ -43,7 +50,10 @@ const cityShort = profile.city.split(",")[0];
         <div class="hero-inner">
           <div class="intro">
             <span class="label kicker">{profile.role} · {cityShort}</span>
-            <h1 class="display">{profile.name}</h1>
+            <h1 class="display name" style={`--n:${letter}`}>
+              <span class="sr">{profile.name}</span>
+              <span class="letters" aria-hidden="true">{letters.map((w, k) => <>{k > 0 && " "}<span class="word">{w.map((l) => <span style={`--i:${l.i}`}>{l.c}</span>)}</span></>)}</span>
+            </h1>
             <p class="pitch">{profile.pitch}</p>
             <div class="ctas">
               <PillButton href={profile.resume} icon="down" download>{ui.downloadResume}</PillButton>
@@ -88,6 +98,22 @@ const cityShort = profile.city.split(",")[0];
       })}
     </main>
   </div>
+  <!-- Scroll reveals: only rows still below the first screen are hidden, so nothing visible ever flashes out, and
+       with JavaScript off (or reduced motion) everything simply stays put. Each row fades up once, as it enters. -->
+  <script is:inline>
+    (() => {
+      if (!("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const SEL = ".block .head, .block .body > p, .path, .rows > article, .grid > li, .groups > .group, .off .say, .off .links, .contact .inner > *, .contact footer";
+      const io = new IntersectionObserver((list) => {
+        for (const e of list) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      }, { rootMargin: "0px 0px -8% 0px" });
+      for (const el of document.querySelectorAll(SEL)) {
+        if (el.getBoundingClientRect().top < innerHeight) continue;
+        el.classList.add("rv");
+        io.observe(el);
+      }
+    })();
+  </script>
 </Base>
 
 <style>
@@ -118,6 +144,44 @@ const cityShort = profile.city.split(",")[0];
   .intro { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: clamp(16px, 2cqw, 28px); }
   .kicker { font-size: clamp(11px, 1cqw, 13px); letter-spacing: 0.16em; font-weight: 500; line-height: 1.5; }
   h1 { font-size: clamp(64px, 12.4cqw, 176px); line-height: 0.86; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .word { display: inline-block; white-space: nowrap; }
+  .word > span { display: inline-block; }
+
+  /* Load motion: letters rise 0.3 s each, the last starting by 0.3 s; the pitch, buttons and facts fade up after. */
+  @media (prefers-reduced-motion: no-preference) {
+    .word > span { animation: rise 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i) * min(0.04s, 0.3s / max(1, var(--n) - 1))); }
+    .kicker { animation: fade-up 0.4s ease-out both; }
+    .pitch { animation: fade-up 0.4s ease-out 0.3s both; }
+    .ctas { animation: fade-up 0.4s ease-out 0.4s both; }
+    .facts { animation: fade-up 0.4s ease-out 0.45s both; }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(0.32em); } }
+  /* From 30%, not 0: the pitch is the page's largest text, and nothing may delay reading (it paints on the first frame,
+     so Largest Contentful Paint stays at first paint: 0.8 s on 4G, as before the motion; from 0 it was 1.5 s). */
+  @keyframes fade-up { from { opacity: 0.3; transform: translateY(12px); } }
+
+  /* Scroll reveals (the inline script adds .rv to rows below the first screen, then .in as each enters the view). */
+  :global(.rv) { opacity: 0; transform: translateY(12px); transition: opacity 0.5s ease-out, transform 0.5s ease-out; }
+  :global(.rv.in) { opacity: 1; transform: none; }
+  /* "The path so far": the steps wipe in left to right, the coral "next" step last, all within 0.6 s. */
+  :global(.path.rv) { opacity: 1; transform: none; }
+  :global(.path.rv li) { clip-path: inset(0 100% 0 0); transition: clip-path 0.3s cubic-bezier(0.3, 0.6, 0.3, 1); }
+  :global(.path.rv.in li) { clip-path: inset(0 0 0 0); }
+  :global(.path.rv.in li:nth-child(2)) { transition-delay: 0.045s; }
+  :global(.path.rv.in li:nth-child(3)) { transition-delay: 0.09s; }
+  :global(.path.rv.in li:nth-child(4)) { transition-delay: 0.135s; }
+  :global(.path.rv.in li:nth-child(5)) { transition-delay: 0.18s; }
+  :global(.path.rv.in li:nth-child(6)) { transition-delay: 0.225s; }
+  :global(.path.rv.in li:nth-child(n + 7)) { transition-delay: 0.27s; }
+
+  /* Arrows nudge on hover and press: along the arrow, out to the corner, or down for a download. */
+  :global(a > svg[data-icon]) { transition: transform 0.18s ease; }
+  :global(a:hover > svg[data-icon="arrow"]) { transform: translateX(3px); }
+  :global(a:hover > svg[data-icon="out"]) { transform: translate(2px, -2px); }
+  :global(a:hover > svg[data-icon="down"]) { transform: translateY(2px); }
+  :global(a:active > svg[data-icon]) { transform: scale(0.92); }
+  @media (prefers-reduced-motion: reduce) { :global(a > svg[data-icon]) { transition: none; } }
   .pitch { margin: 0; max-width: 660px; font-size: clamp(19px, 1.9cqw, 26px); line-height: 1.32; font-weight: 500; text-wrap: pretty; }
   .ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
   .ghost {

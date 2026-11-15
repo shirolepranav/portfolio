@@ -50,7 +50,7 @@ const socials = (["linkedin", "github", "x", "instagram"] as const)
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; }
   .socials { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 0 24px; }
   .socials a {
-    display: flex; align-items: center; gap: 6px; min-height: 44px; color: var(--paper);
+    display: flex; align-items: center; gap: 6px; min-height: 44px; min-width: 44px; color: var(--paper); /* 44 x 44 even for "X" */
     text-decoration: none; font-size: 12px; letter-spacing: 0.12em; font-weight: 500;
   }
   .socials a:hover, footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
