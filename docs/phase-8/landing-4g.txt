@@ -10,17 +10,29 @@ Why (request waterfall, desktop): HTML 0 -> 657 ms (16 KB); then, all at once, f
 (62 KB avif, High) share the 1.47 Mbps line: fonts end 1356-1888 ms, still ends 2015 ms. Every request also pays 562 ms
 latency, so no image byte can arrive before about 1.2 s.
 
-Experiments (not shipped; each needs the owner's OK because it changes how the page looks):
+Experiments (not shipped: both change how the page looks; the owner chose the placeholder instead):
 no font preload on the landing      phone 1792 ms · desktop 2088 ms  (fonts are fetched at first layout anyway)
 1440 px desktop still only           phone 1812 ms · desktop 1800 ms
 fonts wait for the still (blocked)   phone 1420 ms · desktop 1648 ms
 fonts wait + 1440 px desktop still   phone 1420 ms · desktop 1416 ms  <- the only combination under 1.5 s
 
-# "3D island interactive within 4 s on a mid-range phone on 4G" (same throttling, phone, 3 runs).
-# 3D code: 181 KB gz, about 1.6 s to arrive. world built = geometry ready, before the shader compile and first frame, which run on the GPU (software here).
-no touch     run 1: load 1856 · 3D starts 4856 · world built 7462 ms (build 1017 ms at 4x CPU)
-no touch     run 2: load 1854 · 3D starts 4854 · world built 7569 ms (build 1134 ms at 4x CPU)
-no touch     run 3: load 1859 · 3D starts 4859 · world built 7365 ms (build 929 ms at 4x CPU)
-touch at load run 1: load 1853 · 3D starts 1853 · world built 4378 ms (build 922 ms at 4x CPU)
-touch at load run 2: load 1848 · 3D starts 1848 · world built 4404 ms (build 969 ms at 4x CPU)
-touch at load run 3: load 1858 · 3D starts 1858 · world built 4504 ms (build 1045 ms at 4x CPU)
+# Shipped after review: a blurred placeholder of the island inside the HTML (about 300 bytes per still, no request),
+# so the island's shape paints with the text. Screenshots with the still images held back: placeholder-*.jpg.
+slow 4G (as above)   phone:   FCP 904 ms · name, buttons and blurred island 904 ms · sharp still 1816 ms
+slow 4G (as above)   desktop: FCP 944 ms · name, buttons and blurred island 944 ms · sharp still 2076 ms
+typical 4G           phone:   FCP 500 ms · name and buttons 500 ms · sharp still 584 ms
+typical 4G           desktop: FCP 536 ms · name and buttons 536 ms · sharp still 652 ms
+(typical 4G = 9 Mbps down, 1.5 Mbps up, 170 ms latency, 4x CPU)
+
+# "3D island interactive within 4 s on a mid-range phone on 4G": phone 390x844, 4x CPU, 3 runs each.
+# world built = geometry ready, before the shader compile and first frame, which run on the GPU (software here, so the
+# owner times the rest with a stopwatch). The 3D code is 181 KB gzipped.
+before (Phase 7 start rule: code fetched on first input or after 3 s idle)
+  slow 4G, no touch:      load 1.85 s · world built 7.37-7.57 s
+  slow 4G, touch at load: load 1.85 s · world built 4.38-4.50 s
+after (code fetched at the load event; the island starts on first input or after 1 s idle)
+  slow 4G, no touch:      load 1.87-1.94 s · world built 4.53-4.61 s
+  slow 4G, touch at load: load 1.87-1.88 s · world built 4.50-4.61 s
+  typical 4G, no touch:      load 0.64-0.75 s · world built 2.69-3.03 s
+  typical 4G, touch at load: load 0.68-0.76 s · world built 2.14-2.16 s
+Build alone: 0.93-1.28 s of main thread at 4x CPU, split into short tasks.

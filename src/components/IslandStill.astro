@@ -1,21 +1,34 @@
 ---
 // The landing's island stills, day and night, under the live 3D. /lake keeps them too (lazy, so they load only if
 // the visitor flies up to the landing and the 3D then has to fall back to them).
+// Under each still sits a tiny blurred copy inside the page itself (island-placeholders.ts), so on a slow
+// connection the island's shape shows with the text at first paint and the sharp still lands over it.
 import Still from "./Still.astro";
 import { site } from "../content/site.ts";
 import dayPhone from "../assets/landing-island-day-phone.jpg";
 import dayDesktop from "../assets/landing-island-day-desktop.jpg";
 import nightPhone from "../assets/map-island-night-phone.jpg";
 import nightDesktop from "../assets/landing-island-night-desktop.jpg";
+import * as blur from "./island-placeholders.ts";
 
 interface Props { eager?: boolean }
 const { eager = false } = Astro.props;
 const { ui } = site;
 ---
-<div class="island day"><Still phone={dayPhone} desktop={dayDesktop} alt={ui.landingStillAlt} eager={eager} /></div>
-<div class="island night"><Still phone={nightPhone} desktop={nightDesktop} alt={ui.landingStillNightAlt} /></div>
+<div class="island day" style={`--ph: url(${blur.dayPhone}); --ph-wide: url(${blur.dayDesktop})`}>
+  <Still phone={dayPhone} desktop={dayDesktop} alt={ui.landingStillAlt} eager={eager} />
+</div>
+<div class="island night" style={`--ph: url(${blur.nightPhone}); --ph-wide: url(${blur.nightDesktop})`}>
+  <Still phone={nightPhone} desktop={nightDesktop} alt={ui.landingStillNightAlt} />
+</div>
 
 <style>
+  /* The blurred placeholder, under the still: the same crop (cover, centred), softened so its pixels never show. */
+  .island::before {
+    content: ""; position: absolute; inset: 0; background: var(--ph) center / cover no-repeat;
+    filter: blur(16px); transform: scale(1.08);
+  }
+  @media (orientation: landscape) { .island::before { background-image: var(--ph-wide); } }
   .island.night, :root[data-mode="night"] .island.day { display: none; }
   :root[data-mode="night"] .island.night { display: block; }
   /* On /lake the walking still shows instead; these wait for the landing (lazy images load only once shown). */

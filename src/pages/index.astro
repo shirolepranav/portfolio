@@ -16,19 +16,22 @@ const { profile } = site;
 </Base>
 
 <script>
-  // The 3D waits for the page to finish loading, then starts on the visitor's first move, touch, scroll or key press,
-  // or after 3 s idle, whichever comes first. So it never competes with the text, buttons and still.
+  // The 3D code downloads once the page has loaded (the text, buttons and still are up, so it competes with nothing),
+  // and the island starts on the visitor's first move, touch, scroll or key press, or after 1 s idle, whichever comes
+  // first. Once loaded, it no longer competes with the first paint, so the wait can be short.
   const INPUT = ["pointermove", "pointerdown", "wheel", "scroll", "keydown"];
-  let started = false;
+  let code: Promise<typeof import("../ui/landing.ts")> | null = null, started = false;
+  const fetchCode = () => (code ??= import("../ui/landing.ts"));
   const start = () => {
     if (started) return;
     started = true;
     for (const e of INPUT) removeEventListener(e, start);
-    void import("../ui/landing.ts").then((m) => m.startLanding());
+    void fetchCode().then((m) => m.startLanding());
   };
   const arm = () => {
+    void fetchCode();
     for (const e of INPUT) addEventListener(e, start, { passive: true });
-    setTimeout(start, 3000);
+    setTimeout(start, 1000);
   };
   if (document.readyState === "complete") arm(); else addEventListener("load", arm, { once: true });
 </script>
