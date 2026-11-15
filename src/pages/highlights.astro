@@ -30,7 +30,7 @@ const words = profile.name.split(" ").map((w) => [...w]);
 let letter = 0;
 const letters = words.map((w) => w.map((c) => ({ c, i: letter++ })));
 ---
-<Base title={`${profile.name} · ${profile.role}`} description={profile.pitch} path="/highlights">
+<Base title={`${profile.name} · ${profile.role}`} description={profile.pitch} path="/highlights" person>
   <div class="page">
     <header>
       <div class="bar">

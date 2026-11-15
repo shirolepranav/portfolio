@@ -27,6 +27,9 @@ if (p.resume && !inPublic(p.resume)) {
   (launch ? errors : warnings).push(`The résumé "${p.resume}" is not in /public yet.`);
 }
 
+// The share image, made by scripts/make-share-image.mjs.
+if (!inPublic("/share.jpg")) (launch ? errors : warnings).push(`The share image /share.jpg is missing. Run: node scripts/make-share-image.mjs`);
+
 if (p.site && !/^https:\/\/[^/]+$/.test(p.site)) errors.push(`profile.site "${p.site}" should look like https://example.com, with no slash at the end.`);
 
 // Stop names
