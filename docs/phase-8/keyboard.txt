@@ -1,0 +1,121 @@
+
+## desktop / landing
+   1 button "Sound" 48x48
+   2 button "Day mode" 44x44
+   3 button "Night mode" 44x44
+   4 a "Walk the lake3D world · 7 stops · " 460x92
+   5 a "Just the highlightsOne page · made" 460x92
+  (focus wraps to "Sound")
+  dive by Enter -> focus on {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+
+## desktop /lake walking (after the dive)
+   1 a "Skip to Highlights" 192x44
+   2 a "Portfolio · 2026, back to the star" 206x48
+   3 a "Highlights" 142x48
+   4 button "Sound" 48x48
+   5 button "Day mode" 44x44
+   6 button "Night mode" 44x44
+   7 a "01Next stop · AboutTrailhead" 212x52
+   8 button "Map M: Open the lake map" 136x136
+  (focus wraps to "Skip to Highlights")
+  W to walk, E to open: panel open; focus {"tag":"h2","name":"Trailhead","w":402,"h":81,"ring":false,"onScreen":true,"again":false}
+
+## desktop stop panel (focus should stay inside)
+   1 a "Back to stop 7, The Campfire" 64x64
+   2 a "Keep walking02 The Cabin" 326x64
+   3 button "Close and keep walking" 44x44
+   4 div "TrailheadWhere the trail starts, a" 462x596
+  (focus wraps to "Back to stop 7, The Campfire")
+  Esc closes; focus back on {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+  M opens the map; focus {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+
+## desktop map (focus should stay inside)
+   1 button "Close the map" 44x44
+   2 button "Switch to night" 44x44
+   3 a "01TrailheadAbout · Here" 244x52
+   4 a "02The CabinWork" 244x52
+   5 a "03The LookoutSkills" 244x52
+   6 a "04The CampApps" 244x52
+   7 a "05The DockSaaS" 244x52
+   8 a "06The PointPhotos" 244x52
+   9 a "07The CampfireContact" 244x52
+  10 a "HighlightsOne page" 244x52
+  (focus wraps to "Close the map")
+  Esc closes the map; focus {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+  back -> landing; focus {"tag":"a","name":"Walk the lake3D world · 7 stops · ","w":460,"h":92,"ring":true,"onScreen":true,"again":false}
+
+## desktop /highlights
+   1 a "[Your Name], back to the start" 120x44
+   2 a "3D tour" 99x44
+   3 a "Résumé" 106x44
+   4 a "Download résumé" 284x64
+   5 a "Get in touch" 178x64
+   6 a "Walk this lake in 3D" 212x44
+   7 a "Photos on Instagram" 381x52
+   8 a "Walk the lake in 3D" 381x52
+   9 a "[you@email.com]" 260x45
+  10 a "Download résumé" 284x64
+  11 a "LinkedIn" 89x44
+  12 a "GitHub" 72x44
+  13 a "X" 44x44
+  14 a "Instagram" 98x44
+  15 a "Got five minutes? Walk the lake" 261x44
+  (focus wraps to "[Your Name], back to the start")
+
+## phone / landing
+   1 button "Day mode" 44x44
+   2 button "Night mode" 44x44
+   3 a "Walk the lake3D world · 7 stops · " 358x76
+   4 a "Just the highlightsOne page · made" 358x76
+  (focus wraps to "Day mode")
+  dive by Enter -> focus on {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+
+## phone /lake walking (after the dive)
+   1 a "Skip to Highlights" 192x44
+   2 button "Open the lake map" 44x44
+   3 button "Switch to night" 44x44
+   4 a "01Next stop · AboutTrailhead" 212x52
+   5 a "Highlights" 131x44
+  (focus wraps to "Skip to Highlights")
+  W to walk, E to open: panel open; focus {"tag":"h2","name":"Trailhead","w":354,"h":42,"ring":false,"onScreen":false,"again":false}
+
+## phone stop panel (focus should stay inside)
+   1 a "Keep walking02 The Cabin" 354x56
+   2 button "Close and keep walking" 44x44
+   3 div "TrailheadWhere the trail starts, a" 390x300
+  (focus wraps to "Keep walking02 The Cabin")
+  Esc closes; focus back on {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+  M opens the map; focus {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+
+## phone map (focus should stay inside)
+   1 button "Close the map" 44x44
+   2 button "Switch to night" 44x44
+   3 a "01TrailheadAbout · Here" 179x52
+   4 a "02The CabinWork" 179x52
+   5 a "03The LookoutSkills" 179x52
+   6 a "04The CampApps" 179x52
+   7 a "05The DockSaaS" 179x52
+   8 a "06The PointPhotos" 179x52
+   9 a "07The CampfireContact" 179x52
+  10 a "HighlightsOne page" 179x52
+  (focus wraps to "Close the map")
+  Esc closes the map; focus {"tag":"h1","name":"Walk the lake","w":1,"h":1,"ring":true,"onScreen":false,"again":false}
+  back -> landing; focus {"tag":"a","name":"Walk the lake3D world · 7 stops · ","w":358,"h":76,"ring":true,"onScreen":true,"again":false}
+
+## phone /highlights
+   1 a "[Your Name], back to the start" 120x44
+   2 a "3D tour" 99x44
+   3 a "Résumé" 106x44
+   4 a "Download résumé" 284x64
+   5 a "Get in touch" 178x64
+   6 a "Walk this lake in 3D" 212x44
+   7 a "Photos on Instagram" 350x52
+   8 a "Walk the lake in 3D" 350x52
+   9 a "[you@email.com]" 162x44
+  10 a "Download résumé" 284x64
+  11 a "LinkedIn" 89x44
+  12 a "GitHub" 72x44
+  13 a "X" 44x44
+  14 a "Instagram" 98x44
+  15 a "Got five minutes? Walk the lake" 261x44
+  (focus wraps to "[Your Name], back to the start")

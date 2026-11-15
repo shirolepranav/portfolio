@@ -14,6 +14,7 @@ export interface Profile {
   pitch: string;         // two sentences for the Highlights hero
   resume: string;        // path to the PDF in /public, e.g. "/resume.pdf"
   email: string;
+  site: string;          // the site's address, e.g. "https://example.com": canonical links, sitemap and share tags
   links: { linkedin: string; github: string; x: string; instagram: string }; // "" hides a link
   facts: { label: string; value: string | string[] }[]; // Highlights hero column; an array = one line each
 }

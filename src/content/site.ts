@@ -15,6 +15,7 @@ export const site = {
       "I build the pipelines that feed models, then ship the product on top. Data engineer by day, solo founder of iOS apps and SaaS products by night, now looking for an AI engineering role.",
     resume: "/resume.pdf", // file lives in /public
     email: "[you@email.com]",
+    site: "https://[your-domain]", // the site's address, no slash at the end
     links: {
       linkedin: "https://www.linkedin.com/in/[your-handle]",
       github: "https://github.com/shirolepranav",
@@ -224,11 +225,15 @@ export const site = {
     lakeCanvas: "A 3D mountain lake: a loop trail runs around a turquoise lake ringed by snowy peaks",
     lakeStillAlt: "A low-poly hiker walks the sandy shore of a turquoise lake toward a fire lookout tower, under snowy peaks",
     skipToHighlights: "Skip to Highlights",
+    // When the 3D can't run: no WebGL, or the browser took the 3D context away (lost).
+    fallbackTitle: "The lake needs 3D",
+    fallbackLostTitle: "The lake stopped drawing",
+    fallbackLine: "This browser can't draw the 3D lake right now. Everything in it is on one page.",
+    tryAgain: "Try again",
     highlights: "Highlights",
     switchToDay: "Switch to day",
     switchToNight: "Switch to night",
     openMap: "Open the lake map",
-    openMapKey: "Open the lake map, shortcut M",
     closeMap: "Close the map",
     railBetween: "Progress around the lake: between stop {a} and stop {b} of {count}", // {a}, {b}, {count} are numbers
     railAt: "Progress around the lake: at stop {a} of {count}",

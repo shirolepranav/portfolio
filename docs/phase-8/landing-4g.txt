@@ -1,0 +1,26 @@
+# Landing on 4G: real throttling over CDP (562.5 ms latency, 1.47 Mbps down, 675 kbps up, 4x CPU), fresh cache,
+# Element Timing on the name, the two button labels and the island still. Median of 5. Phone 390x844 @3x, desktop 1440x900 @2x.
+
+main (before Phase 8)  phone:   FCP 844 ms · name and buttons 844 ms · island still 1780 ms
+main (before Phase 8)  desktop: FCP 852 ms · name and buttons 852 ms · island still 2016 ms
+phase-8                phone:   FCP 852 ms · name and buttons 852 ms · island still 1804 ms
+phase-8                desktop: FCP 864 ms · name and buttons 864 ms · island still 2020 ms
+
+Why (request waterfall, desktop): HTML 0 -> 657 ms (16 KB); then, all at once, four fonts (79 KB, VeryHigh) and the still
+(62 KB avif, High) share the 1.47 Mbps line: fonts end 1356-1888 ms, still ends 2015 ms. Every request also pays 562 ms
+latency, so no image byte can arrive before about 1.2 s.
+
+Experiments (not shipped; each needs the owner's OK because it changes how the page looks):
+no font preload on the landing      phone 1792 ms · desktop 2088 ms  (fonts are fetched at first layout anyway)
+1440 px desktop still only           phone 1812 ms · desktop 1800 ms
+fonts wait for the still (blocked)   phone 1420 ms · desktop 1648 ms
+fonts wait + 1440 px desktop still   phone 1420 ms · desktop 1416 ms  <- the only combination under 1.5 s
+
+# "3D island interactive within 4 s on a mid-range phone on 4G" (same throttling, phone, 3 runs).
+# 3D code: 181 KB gz, about 1.6 s to arrive. world built = geometry ready, before the shader compile and first frame, which run on the GPU (software here).
+no touch     run 1: load 1856 · 3D starts 4856 · world built 7462 ms (build 1017 ms at 4x CPU)
+no touch     run 2: load 1854 · 3D starts 4854 · world built 7569 ms (build 1134 ms at 4x CPU)
+no touch     run 3: load 1859 · 3D starts 4859 · world built 7365 ms (build 929 ms at 4x CPU)
+touch at load run 1: load 1853 · 3D starts 1853 · world built 4378 ms (build 922 ms at 4x CPU)
+touch at load run 2: load 1848 · 3D starts 1848 · world built 4404 ms (build 969 ms at 4x CPU)
+touch at load run 3: load 1858 · 3D starts 1858 · world built 4504 ms (build 1045 ms at 4x CPU)

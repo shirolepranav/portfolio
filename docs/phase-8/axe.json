@@ -1,0 +1,182 @@
+[
+ {
+  "size": "phone",
+  "mode": "day",
+  "state": "/ (landing)",
+  "violations": 0,
+  "passes": 31,
+  "contrastToCheckByHand": 9,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "day",
+  "state": "/lake (walking)",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 7,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "day",
+  "state": "/lake#cabin (panel open)",
+  "violations": 0,
+  "passes": 39,
+  "contrastToCheckByHand": 14,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "day",
+  "state": "/lake map",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 21,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "day",
+  "state": "/highlights",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 1,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "night",
+  "state": "/ (landing)",
+  "violations": 0,
+  "passes": 31,
+  "contrastToCheckByHand": 9,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "night",
+  "state": "/lake (walking)",
+  "violations": 0,
+  "passes": 34,
+  "contrastToCheckByHand": 7,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "night",
+  "state": "/lake#cabin (panel open)",
+  "violations": 0,
+  "passes": 37,
+  "contrastToCheckByHand": 14,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "night",
+  "state": "/lake map",
+  "violations": 0,
+  "passes": 34,
+  "contrastToCheckByHand": 23,
+  "details": []
+ },
+ {
+  "size": "phone",
+  "mode": "night",
+  "state": "/highlights",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 1,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "day",
+  "state": "/ (landing)",
+  "violations": 0,
+  "passes": 32,
+  "contrastToCheckByHand": 17,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "day",
+  "state": "/lake (walking)",
+  "violations": 0,
+  "passes": 37,
+  "contrastToCheckByHand": 23,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "day",
+  "state": "/lake#cabin (panel open)",
+  "violations": 0,
+  "passes": 40,
+  "contrastToCheckByHand": 30,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "day",
+  "state": "/lake map",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 25,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "day",
+  "state": "/highlights",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 1,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "night",
+  "state": "/ (landing)",
+  "violations": 0,
+  "passes": 32,
+  "contrastToCheckByHand": 17,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "night",
+  "state": "/lake (walking)",
+  "violations": 0,
+  "passes": 35,
+  "contrastToCheckByHand": 23,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "night",
+  "state": "/lake#cabin (panel open)",
+  "violations": 0,
+  "passes": 38,
+  "contrastToCheckByHand": 30,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "night",
+  "state": "/lake map",
+  "violations": 0,
+  "passes": 34,
+  "contrastToCheckByHand": 25,
+  "details": []
+ },
+ {
+  "size": "desktop",
+  "mode": "night",
+  "state": "/highlights",
+  "violations": 0,
+  "passes": 36,
+  "contrastToCheckByHand": 1,
+  "details": []
+ }
+]

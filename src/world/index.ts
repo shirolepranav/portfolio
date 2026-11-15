@@ -23,6 +23,7 @@ import { createHiker } from "./actors/hiker";
 import { createWildlife, type Actor, type ActorContext } from "./actors/animals";
 import { createBirds } from "./actors/birds";
 import { createAudio } from "./audio";
+import { createGovernor, type GovernorEvent } from "./governor";
 
 export type { Mode, StopId, Tier } from "./config";
 export type { ShotName } from "./camera";
@@ -36,6 +37,8 @@ export interface WorldOptions extends PropCounts {
   reducedMotion?: boolean;              // camera cuts instead of flights
   landing?: boolean;                    // start on the landing orbit (the / address), ready to dive in
   onCommand?: (c: Command) => void;     // one-shot keys, for the HUD
+  onTier?: (e: GovernorEvent) => void;  // the frame rate stayed low: a step down a tier (or, on low, "still")
+  onLost?: () => void;                  // the browser took the WebGL context away: the world stops drawing
 }
 export type World = Awaited<ReturnType<typeof createWorld>>;
 export type View = "landing" | "dive" | "walk" | "stop" | "map";
@@ -50,7 +53,7 @@ const DIVE = 2.5, RISE = 1.6;
 /** Lets the browser paint and handle input between build steps, so no single task blocks the page for long. */
 const pause = () => new Promise<void>((r) => setTimeout(r, 0));
 
-/** Starting tier from device hints. Phase 8 adds stepping down when the frame rate drops. */
+/** Starting tier from device hints. The governor (governor.ts) steps it down if the frame rate drops. */
 export function pickTier(): Tier {
   const phone = matchMedia("(pointer: coarse)").matches || (navigator.hardwareConcurrency ?? 8) <= 4;
   return phone ? "medium" : "high";
@@ -416,7 +419,7 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
     resize();
   }
 
-  function setTier(t: Tier) {
+  function applyTier(t: Tier) {
     tier = t;
     const q = TIERS[t];
     lights.setTier(t);
@@ -434,8 +437,12 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
   input.enabled = !open0 && !opts.landing;
   input.spinning = !!opts.landing;
   shot = referenceShot("walk", terrain);
-  setTier(tier);
+  applyTier(tier);
   addEventListener("resize", resize);
+  // The tier step-down: judged on drawn frames only. It changes the tier itself; the page hears of it through onTier.
+  const governor = createGovernor(tier, (e) => { if (e.to !== "still") applyTier(e.to); opts.onTier?.(e); });
+  /** A tier set by hand (the debug switch): the governor carries on from there. */
+  const setTier = (t: Tier) => { applyTier(t); governor.setTier(t, performance.now() / 1000); };
 
   const lampBoost = (i: number, k: number) => lights.boost(lights.lamps[i], k);
   const life: ActorContext = { dt: 0, t: 0, hiker: feet, eye: camera.position, night: 0, ripple: (x, z) => water.ripple(x, z, clock) };
@@ -485,21 +492,41 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
     renderer.info.reset();
     if (!draw) return;
     if (composer) composer.render(); else renderer.render(scene, camera);
-    if (first) { first = false; started = true; resolveReady(); warmUp(); }
+    if (first) { first = false; started = true; performance.mark("world:first-frame"); resolveReady(); warmUp(); }
   }
-  let frozen = false;
+  let frozen = false, lost = false, cpu = 0;
   const loop = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000 || 0); // a long pause never becomes one huge step
     last = now;
-    if (!frozen) frame(dt, now);
+    if (frozen) { governor.skip(now / 1000); return; }
+    const t0 = performance.now();
+    frame(dt, now);
+    cpu += (performance.now() - t0 - cpu) * 0.05; // main-thread time per frame, smoothed over about 20 frames
+    // The dive is judged on its own (debug "last flight"); stepping down mid-flight would stall it.
+    if (dive) governor.skip(now / 1000); else governor.frame(now / 1000);
   };
   // Compile the day shaders off the main thread before the first frame, so it never stalls the page.
+  performance.mark("world:built"); // timing marks for the 4 s target: built, compiled, first frame
   placeCamera(shot);
   await renderer.compileAsync(scene, camera);
+  performance.mark("world:compiled");
   renderer.setAnimationLoop(loop);
   // A hidden tab: stop drawing altogether (PLAN.md, Loading and fallbacks). The audio pauses itself.
-  const onVisible = () => { renderer.setAnimationLoop(document.hidden ? null : loop); last = performance.now(); };
+  let paused = false;
+  const onVisible = () => {
+    renderer.setAnimationLoop(document.hidden || paused || lost ? null : loop);
+    last = performance.now();
+    governor.skip(last / 1000);
+  };
   document.addEventListener("visibilitychange", onVisible);
+  // A lost context (the GPU reset, or the browser reclaimed it): stop drawing for good and let the page show its fallback.
+  canvas.addEventListener("webglcontextlost", () => {
+    if (lost) return;
+    lost = true;
+    renderer.setAnimationLoop(null);
+    audio.set(false);
+    opts.onLost?.();
+  });
 
   const v = new Vector3(), ray = new Ray(), sphere = new Sphere();
   /** CSS pixel position of a world point on the canvas; front is false when it is behind the camera. */
@@ -530,7 +557,10 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
     openStop,
     goTo,
     /** Closes the open stop: the hiker walks back to the trail and the camera returns behind it. */
-    close() { const v = state.get("view"); if (v === "stop" || v === "map") setView("walk", null); },
+    close() {
+      if (glide) glide.then = null; // walking on to a stop ("Keep walking", the map): arrive, but don't open it
+      const v = state.get("view"); if (v === "stop" || v === "map") setView("walk", null);
+    },
     /** Shows or hides the island map: the camera flies up to the orbit and back. */
     showMap(on: boolean) { const v = state.get("view"); if (on && (v === "walk" || v === "stop")) { glide = null; setView("map", null, 1.6); } else if (!on && v === "map") setView("walk", null, 1.6); },
     /** The dive into the lake (down) or the flight back up to the landing. Resolves when the camera lands. */
@@ -566,8 +596,16 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
     /** Debug: stops the clock (true), or steps it by dt seconds and draws, for frame-exact screenshots. */
     freeze(on: boolean) { frozen = on; },
     step(dt: number, frames = 1) { for (let i = 0; i < frames; i++) frame(dt, performance.now(), i === frames - 1); },
-    /** Whether the render loop is running (false on a hidden tab). */
-    get running() { return !document.hidden; },
+    /** Whether the render loop is running (false on a hidden tab, while paused, or after a lost context). */
+    get running() { return !document.hidden && !paused && !lost; },
+    /** Stops (true) or restarts drawing, as on a hidden tab: the landing pauses while it shows its still. */
+    pause(on: boolean) { paused = on; onVisible(); },
+    /** True once the WebGL context is lost. */
+    get lost() { return lost; },
+    /** The tier step-down: its tier, the last window's fps, every step so far, and an off switch (debug). */
+    governor,
+    /** Main-thread milliseconds per frame, smoothed (debug). */
+    get cpuMs() { return cpu; },
     /** Sound on or off. Call it from a click or key press (browsers only start audio on one). */
     setSound(on: boolean) { audio.set(on); },
     get sound() { return audio.on; },

@@ -1,0 +1,23 @@
+---
+// The landing's island stills, day and night, under the live 3D. /lake keeps them too (lazy, so they load only if
+// the visitor flies up to the landing and the 3D then has to fall back to them).
+import Still from "./Still.astro";
+import { site } from "../content/site.ts";
+import dayPhone from "../assets/landing-island-day-phone.jpg";
+import dayDesktop from "../assets/landing-island-day-desktop.jpg";
+import nightPhone from "../assets/map-island-night-phone.jpg";
+import nightDesktop from "../assets/landing-island-night-desktop.jpg";
+
+interface Props { eager?: boolean }
+const { eager = false } = Astro.props;
+const { ui } = site;
+---
+<div class="island day"><Still phone={dayPhone} desktop={dayDesktop} alt={ui.landingStillAlt} eager={eager} /></div>
+<div class="island night"><Still phone={nightPhone} desktop={nightDesktop} alt={ui.landingStillNightAlt} /></div>
+
+<style>
+  .island.night, :root[data-mode="night"] .island.day { display: none; }
+  :root[data-mode="night"] .island.night { display: block; }
+  /* On /lake the walking still shows instead; these wait for the landing (lazy images load only once shown). */
+  :global(.lake:has(.walk-still):not([data-page="landing"])) .island { display: none; }
+</style>

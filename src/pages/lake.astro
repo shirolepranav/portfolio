@@ -1,18 +1,21 @@
 ---
 // The lake: the 3D world full screen, walked with wheel, touch and keys, with the HUD over it.
 // While the world loads, the walking still shows with a slim progress line (PLAN.md, Loading and fallbacks).
-// The landing renders the same shell and dives into it; this page is for a direct visit or a reload.
+// The landing's text is here too, lifted away, so the logo pill flies back up to it with no page load.
 import Base from "../layouts/Base.astro";
+import Landing from "../components/Landing.astro";
+import IslandStill from "../components/IslandStill.astro";
 import Lake from "../components/lake/Lake.astro";
 import { site } from "../content/site.ts";
 
 const { profile, ui } = site;
 ---
-<Base title={`${profile.name} · ${ui.landingWalk}`} description={profile.tagline}>
-  <main><Lake /></main>
+<Base title={`${profile.name} · ${ui.landingWalk}`} description={profile.tagline} path="/lake">
+  <Landing page="lake" />
+  <Lake><IslandStill /></Lake>
 </Base>
 
 <script>
-  import { startLake } from "../ui/lake.ts";
-  void startLake();
+  import { startLanding } from "../ui/landing.ts";
+  void startLanding();
 </script>

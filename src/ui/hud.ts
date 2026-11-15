@@ -168,7 +168,10 @@ export function startHud(world: World) {
   const giveBack = () => {
     const el = returnTo;
     returnTo = null;
-    if (el?.isConnected && el.checkVisibility?.({ visibilityProperty: true })) el.focus({ preventScroll: true });
+    if (el?.isConnected && el.checkVisibility?.({ visibilityProperty: true })) { el.focus({ preventScroll: true }); return; }
+    // Nothing to return to (opened by a key with nothing focused): never leave focus inside a hidden box.
+    const a = document.activeElement;
+    if (!a || a === document.body || a.closest("[data-panel], [data-map]")) $(".lake-title").focus({ preventScroll: true });
   };
   // A stop's panel waits for the camera and the prop's reaction (state "arrived"), then springs up and its rows
   // appear one by one, all within PLAN.md's 1.2 s. Each project row cues its tent or canoe as it lands.
@@ -324,7 +327,7 @@ export function startHud(world: World) {
     if (c === "mode") { cycles[0].click(); return; }
     if (view === "landing" || view === "dive") return; // the lake's keys wait until the dive lands
     if (c === "open" && view === "walk" && state.get("near")) visit(state.get("near")!);
-    else if (c === "close") { if (view === "map") toggleMap(false); else if (open) closeStop(); }
+    else if (c === "close") { if (view === "map") toggleMap(false); else if (open || isStop(location.hash.slice(1))) closeStop(); } // also mid-walk to a stop
     else if (c === "map") toggleMap();
     else if ((c === "prev" || c === "next") && open) visit(stops[(index(open) + (c === "next" ? 1 : n - 1)) % n].id);
   }
