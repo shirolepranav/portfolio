@@ -1,5 +1,6 @@
 // Day and night light sets, the shared sky and fog shader code, and the material most of the world uses.
-// Values from env_day and env_night in reference/scene/shots.py.
+// Values from env_day and env_night in reference/scene/shots.py, toned down on screen:
+// day has less sun, fog and exposure so the peaks don't wash out; night lamps glow softer so the props read.
 import { Color, DirectionalLight, HemisphereLight, MeshLambertMaterial, PointLight, ShaderChunk, Vector2, Vector3, type Scene } from "three";
 import { D2R, S, TIERS, type LightGroup, type Mode, type RGB, type Tier } from "./config";
 import { lerp, smooth, toWorld } from "./core";
@@ -24,13 +25,13 @@ const sunDir = (az: number, el: number) =>
 
 export function envDay(az: number, el = 15): Env {
   return {
-    night: false, sun: sunDir(az, el), sunLight: k3([1.0, 0.78, 0.55], 3.6),
+    night: false, sun: sunDir(az, el), sunLight: k3([1.0, 0.78, 0.55], 2.6),
     ambSky: k3([0.34, 0.47, 0.7], 0.72), ambGround: k3([0.6, 0.42, 0.4], 0.42),
-    skyHz: k3([1.0, 0.68, 0.48], 1.15), skyMid: [0.34, 0.62, 0.72], skyZen: [0.09, 0.31, 0.55], below: [0.84, 0.62, 0.56],
+    skyHz: k3([1.0, 0.68, 0.48], 0.95), skyMid: [0.34, 0.62, 0.72], skyZen: [0.09, 0.31, 0.55], below: [0.84, 0.62, 0.56],
     glow: [1.4, 0.16], sunCol: [1.0, 0.74, 0.46], disc: k3([1.0, 0.95, 0.82], 40), sunR: 0.03,
-    fogD: 0.11, fogH: 1.2, fogMax: 0.72, fogTint: 0.82,
+    fogD: 0.08, fogH: 1.2, fogMax: 0.5, fogTint: 0.7,
     waterShallow: [0.2, 0.82, 0.78], waterDeep: [0.015, 0.4, 0.52], waterLight: 1.2, reflMax: 0.5, reflTint: [0.62, 0.96, 0.94],
-    specP: 260, specS: 7, emis: 1.0, exposure: 0.95, n: 0, stars: 0,
+    specP: 260, specS: 7, emis: 1.0, exposure: 0.6, n: 0, stars: 0,
   };
 }
 
@@ -42,7 +43,7 @@ export function envNight(az: number, el = 38): Env {
     glow: [0.2, 0.05], sunCol: [0.6, 0.72, 1.0], disc: k3([1.0, 0.97, 0.9], 9), sunR: 0.026,
     fogD: 0.15, fogH: 0.9, fogMax: 0.85, fogTint: 0.78,
     waterShallow: [0.1, 0.44, 0.47], waterDeep: [0.008, 0.1, 0.16], waterLight: 0.55, reflMax: 0.86, reflTint: [0.85, 1.0, 1.0],
-    specP: 300, specS: 3, emis: 1.0, exposure: 1.35, n: 1, stars: 1,
+    specP: 300, specS: 3, emis: 0.45, exposure: 1.2, n: 1, stars: 1,
   };
 }
 
@@ -238,7 +239,7 @@ export function createLights(scene: Scene, points: PropLight[]) {
   // because three's window stays near full strength until its edge.
   const lamps = points.map(({ p, color, strength, radius, group }, i) => {
     const a = radius * 0.28 * S;
-    const l = new PointLight(new Color(...color), 1.1 * Math.PI * strength * a, radius * 1.8 * S, 1);
+    const l = new PointLight(new Color(...color), 0.7 * Math.PI * strength * a, radius * 1.8 * S, 1);
     l.position.set(...toWorld(p));
     scene.add(l);
     return { l, group, full: l.intensity, phase: i * 2.399, flicker: group !== "stop" };

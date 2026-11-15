@@ -244,7 +244,7 @@ export async function createWorld(canvas: HTMLCanvasElement, opts: WorldOptions)
     lights.apply(env); sky.apply(env, backdrop); water.apply(env);
     skirt.visible = backdrop > 0; // the underside only shows from the orbit views
     // The scripts' bloom is three small blurs; UnrealBloom spreads much wider, so it runs weaker and tighter.
-    if (bloom) { bloom.strength = lerp(0.05, 0.3, env.n); bloom.threshold = lerp(1.6, 1.15, env.n); bloom.radius = 0.1; }
+    if (bloom) { bloom.strength = lerp(0.05, 0.14, env.n); bloom.threshold = lerp(1.6, 1.4, env.n); bloom.radius = 0.1; }
   }
   const applyMode = () => applyEnv(envOf(shot), shot.orbit ? 1 : 0);
 
